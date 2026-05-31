@@ -1,136 +1,71 @@
 'use client'
 
 import {
-  AudioLinesIcon,
   BookOpenIcon,
-  BotIcon,
   FrameIcon,
-  GalleryVerticalEndIcon,
   MapIcon,
   PieChartIcon,
-  Settings2Icon,
-  TerminalIcon,
   TerminalSquareIcon,
 } from 'lucide-react'
 import type * as React from 'react'
 import { NavMain } from '@/components/nav-main'
 import { NavProjects } from '@/components/nav-projects'
 import { NavUser } from '@/components/nav-user'
-import { TeamSwitcher } from '@/components/team-switcher'
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
 
 // This is sample data.
 const data = {
   user: {
-    name: 'shadcn',
-    email: 'm@example.com',
-    avatar: '/avatars/shadcn.jpg',
+    name: 'Luiz Arthur',
+    email: 'luizart@cos.ufrj.br',
+    avatar: '',
   },
-  teams: [
-    {
-      name: 'Acme Inc',
-      logo: <GalleryVerticalEndIcon />,
-      plan: 'Enterprise',
-    },
-    {
-      name: 'Acme Corp.',
-      logo: <AudioLinesIcon />,
-      plan: 'Startup',
-    },
-    {
-      name: 'Evil Corp.',
-      logo: <TerminalIcon />,
-      plan: 'Free',
-    },
-  ],
   navMain: [
     {
-      title: 'Playground',
+      title: 'Geoportal',
       url: '#',
-      icon: <TerminalSquareIcon />,
+      icon: <MapIcon />,
       isActive: true,
       items: [
         {
-          title: 'History',
-          url: '#',
+          title: 'Gerenciar mapas',
+          url: '/dashboard/geoportal/gerenciar-mapas',
         },
         {
-          title: 'Starred',
-          url: '#',
+          title: 'Gerenciar usuários',
+          url: '/dashboard/geoportal/gerenciar-usuarios',
         },
         {
-          title: 'Settings',
-          url: '#',
+          title: 'Acessar o Geoportal',
+          url: '/geoportal',
+          newTab: true,
         },
       ],
     },
     {
-      title: 'Models',
-      url: '#',
-      icon: <BotIcon />,
-      items: [
-        {
-          title: 'Genesis',
-          url: '#',
-        },
-        {
-          title: 'Explorer',
-          url: '#',
-        },
-        {
-          title: 'Quantum',
-          url: '#',
-        },
-      ],
-    },
-    {
-      title: 'Documentation',
+      title: 'Documentação',
       url: '#',
       icon: <BookOpenIcon />,
       items: [
         {
-          title: 'Introduction',
-          url: '#',
+          title: 'Repositório',
+          url: 'https://github.com/lucastavarex/preventorio-bank-platform',
         },
         {
-          title: 'Get Started',
-          url: '#',
+          title: 'WP3 Brazil data',
+          url: 'https://onedrive.live.com/?redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvcyFBaFlOR1huNVVWcllnY0VKNV84U21PeG9ueWtYdVE&id=D85A51F979190D16%2124713&cid=D85A51F979190D16&sb=name&sd=1',
         },
         {
-          title: 'Tutorials',
-          url: '#',
-        },
-        {
-          title: 'Changelog',
-          url: '#',
-        },
-      ],
-    },
-    {
-      title: 'Settings',
-      url: '#',
-      icon: <Settings2Icon />,
-      items: [
-        {
-          title: 'General',
-          url: '#',
-        },
-        {
-          title: 'Team',
-          url: '#',
-        },
-        {
-          title: 'Billing',
-          url: '#',
-        },
-        {
-          title: 'Limits',
+          title: 'Metodologia',
           url: '#',
         },
       ],
@@ -138,19 +73,19 @@ const data = {
   ],
   projects: [
     {
-      name: 'Design Engineering',
-      url: '#',
-      icon: <FrameIcon />,
+      name: 'Site',
+      url: 'https://bancopreventorio.org.br/',
+      // icon: <FrameIcon />,
     },
     {
-      name: 'Sales & Marketing',
-      url: '#',
-      icon: <PieChartIcon />,
+      name: 'Artigo "Mapeando o (in)visível"',
+      url: 'https://zenodo.org/records/16809202',
+      // icon: <BookOpenIcon />,
     },
     {
-      name: 'Travel',
+      name: 'Sobre',
       url: '#',
-      icon: <MapIcon />,
+      // icon: <MapIcon />,
     },
   ],
 }
@@ -159,7 +94,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <div>
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-bold">
+                  B
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">
+                    Banco do Preventório
+                  </span>
+                  <span className="truncate text-xs">Portal interno</span>
+                </div>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />

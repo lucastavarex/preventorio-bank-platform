@@ -1,12 +1,6 @@
-"use client"
+'use client'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { ExternalLinkIcon, LinkIcon } from 'lucide-react'
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -14,9 +8,7 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar"
-import { MoreHorizontalIcon, FolderIcon, ArrowRightIcon, Trash2Icon } from "lucide-react"
+} from '@/components/ui/sidebar'
 
 export function NavProjects({
   projects,
@@ -24,65 +16,29 @@ export function NavProjects({
   projects: {
     name: string
     url: string
-    icon: React.ReactNode
+    icon?: React.ReactNode
   }[]
 }) {
-  const { isMobile } = useSidebar()
-
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel>Projects</SidebarGroupLabel>
+      <SidebarGroupLabel>Links relacionados</SidebarGroupLabel>
       <SidebarMenu>
-        {projects.map((item) => (
+        {projects.map(item => (
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton asChild>
-              <a href={item.url}>
+              <a href={item.url} target="_blank" rel="noopener noreferrer">
                 {item.icon}
                 <span>{item.name}</span>
               </a>
             </SidebarMenuButton>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuAction
-                  showOnHover
-                  className="aria-expanded:bg-muted"
-                >
-                  <MoreHorizontalIcon
-                  />
-                  <span className="sr-only">More</span>
-                </SidebarMenuAction>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-fit"
-                side={isMobile ? "bottom" : "right"}
-                align={isMobile ? "end" : "start"}
-              >
-                <DropdownMenuItem>
-                  <FolderIcon
-                  />
-                  <span>View Project</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <ArrowRightIcon
-                  />
-                  <span>Share Project</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive">
-                  <Trash2Icon
-                  />
-                  <span>Delete Project</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <SidebarMenuAction showOnHover asChild>
+              <a href={item.url} target="_blank" rel="noopener noreferrer">
+                <ExternalLinkIcon />
+                <span className="sr-only">Abrir link</span>
+              </a>
+            </SidebarMenuAction>
           </SidebarMenuItem>
         ))}
-        <SidebarMenuItem>
-          <SidebarMenuButton className="text-sidebar-foreground/70">
-            <MoreHorizontalIcon className="text-sidebar-foreground/70" />
-            <span>More</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
       </SidebarMenu>
     </SidebarGroup>
   )
