@@ -1,3 +1,4 @@
+import { auth } from '@clerk/nextjs/server'
 import { AppSidebar } from '@/components/app-sidebar'
 import { DashboardBreadcrumb } from '@/components/dashboard-breadcrumb'
 import { Separator } from '@/components/ui/separator'
@@ -7,11 +8,13 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  await auth.protect()
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -26,9 +29,7 @@ export default function DashboardLayout({
             <DashboardBreadcrumb />
           </div>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          {children}
-        </div>
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   )

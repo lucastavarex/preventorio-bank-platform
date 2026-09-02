@@ -1,14 +1,9 @@
 'use client'
 
-import {
-  BookOpenIcon,
-  FrameIcon,
-  MapIcon,
-  PieChartIcon,
-  TerminalSquareIcon,
-} from 'lucide-react'
+import { useUser } from '@clerk/nextjs'
+import { BookOpenIcon, MapIcon } from 'lucide-react'
 import type * as React from 'react'
-import { NavMain } from '@/components/nav-main'
+import { type NavItem, NavMain } from '@/components/nav-main'
 import { NavProjects } from '@/components/nav-projects'
 import { NavUser } from '@/components/nav-user'
 import {
@@ -21,14 +16,12 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
+import { isAdminRole, parseRole } from '@/lib/roles'
 
-// This is sample data.
-const data = {
-  user: {
-    name: 'Luiz Arthur',
-    email: 'luizart@cos.ufrj.br',
-    avatar: '',
-  },
+const data: {
+  navMain: NavItem[]
+  projects: { name: string; url: string }[]
+} = {
   navMain: [
     {
       title: 'Geoportal',
@@ -43,6 +36,7 @@ const data = {
         {
           title: 'Gerenciar usuários',
           url: '/dashboard/geoportal/gerenciar-usuarios',
+          adminOnly: true,
         },
         {
           title: 'Acessar o Geoportal',
@@ -75,22 +69,27 @@ const data = {
     {
       name: 'Site',
       url: 'https://bancopreventorio.org.br/',
-      // icon: <FrameIcon />,
     },
     {
       name: 'Artigo "Mapeando o (in)visível"',
       url: 'https://zenodo.org/records/16809202',
-      // icon: <BookOpenIcon />,
     },
     {
       name: 'Sobre',
       url: '#',
-      // icon: <MapIcon />,
     },
   ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { user } = useUser()
+  const isAdmin = isAdminRole(parseRole(user?.publicMetadata.role))
+
+  const navMain = data.navMain.map(item => ({
+    ...item,
+    items: item.items?.filter(subItem => !subItem.adminOnly || isAdmin),
+  }))
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -98,7 +97,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <div>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-bold">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary font-bold text-sidebar-primary-foreground">
                   B
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
@@ -113,11 +112,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={navMain} />
         <NavProjects projects={data.projects} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

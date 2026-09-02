@@ -18,21 +18,22 @@ import {
   SidebarMenuSubItem,
 } from '@/components/ui/sidebar'
 
-export function NavMain({
-  items,
-}: {
-  items: {
-    title: string
-    url: string
-    icon?: React.ReactNode
-    isActive?: boolean
-    items?: {
-      title: string
-      url: string
-      newTab?: boolean
-    }[]
-  }[]
-}) {
+export type NavSubItem = {
+  title: string
+  url: string
+  newTab?: boolean
+  adminOnly?: boolean
+}
+
+export type NavItem = {
+  title: string
+  url: string
+  icon?: React.ReactNode
+  isActive?: boolean
+  items?: NavSubItem[]
+}
+
+export function NavMain({ items }: { items: NavItem[] }) {
   const pathname = usePathname()
 
   return (

@@ -1,54 +1,45 @@
-import { type NextRequest, NextResponse, type ProxyConfig } from 'next/server'
+import { clerkMiddleware } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
 
-const publicRoutes = [
-  { path: '/', whenAuthenticated: 'next' },
-  { path: '/sign-in', whenAuthenticated: 'redirect' },
-  { path: '/geoportal', whenAuthenticated: 'next' },
-  { path: '/sobre', whenAuthenticated: 'next' },
-]
+const AUTH_REDIRECT_ROUTES = ['/sign-in', '/sign-up', '/forgot-password']
+const PUBLIC_ROUTES = ['/', '/geoportal', '/sobre', ...AUTH_REDIRECT_ROUTES]
 
-const REDIRECT_WHEN_NOT_AUTHENTICATED_ROUTE = '/sign-in'
-
-export function proxy(request: NextRequest) {
-  const path = request.nextUrl.pathname
-
-  const publicRoute = publicRoutes.find(route => route.path === path)
-
-  const authToken = request.cookies.get('token')
-
-  // Usuário não autenticado acessando rota pública
-  if (!authToken && publicRoute) {
-    return NextResponse.next()
+function matchesRoute(pathname: string, route: string) {
+  if (route === '/') {
+    return pathname === '/'
   }
 
-  // Usuário não autenticado acessando rota privada
-  if (!authToken && !publicRoute) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = REDIRECT_WHEN_NOT_AUTHENTICATED_ROUTE
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  // Usuário autenticado acessando página de login/cadastro
-  if (
-    authToken &&
-    publicRoute &&
-    publicRoute.whenAuthenticated === 'redirect'
-  ) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/'
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  // Usuário autenticado acessando rota privada
-  if (authToken && !publicRoute) {
-    return NextResponse.next()
-  }
-
-  return NextResponse.next()
+  return pathname === route || pathname.startsWith(`${route}/`)
 }
 
-export const config: ProxyConfig = {
+function isPublicPath(pathname: string) {
+  return PUBLIC_ROUTES.some(route => matchesRoute(pathname, route))
+}
+
+function isAuthRedirectPath(pathname: string) {
+  return AUTH_REDIRECT_ROUTES.some(route => matchesRoute(pathname, route))
+}
+
+const clerkProxy = clerkMiddleware(async (auth, request) => {
+  const { pathname } = request.nextUrl
+  const { userId } = await auth()
+
+  if (userId && isAuthRedirectPath(pathname)) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  if (!isPublicPath(pathname)) {
+    await auth.protect()
+  }
+})
+
+export default clerkProxy
+export const proxy = clerkProxy
+
+export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/(api|trpc)(.*)',
+    '/__clerk/:path*',
   ],
 }
