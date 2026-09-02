@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 
 export function PublicAuthControls() {
   return (
-    <div className="flex justify-end p-4">
+    <>
       <Show when="signed-out">
         <Button asChild>
           <Link href="/sign-in">Entrar</Link>
@@ -17,6 +17,6 @@ export function PublicAuthControls() {
           <Link href="/dashboard">Painel</Link>
         </Button>
       </Show>
-    </div>
+    </>
   )
 }
