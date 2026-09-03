@@ -96,7 +96,7 @@ export function GeojsonDropzone({
         )}
       >
         {file ? (
-          <div className="flex w-full max-w-sm flex-col items-center gap-2">
+          <div className="flex w-full flex-col items-center gap-2">
             <FileJsonIcon className="size-8 text-primary" />
             <p className="max-w-full truncate font-medium text-sm">{file.name}</p>
             <p className="text-muted-foreground text-xs">

@@ -16,7 +16,7 @@ export default async function EditLayerPage({
   const updateWithId = updateLayer.bind(null, id)
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="font-bold text-2xl">Editar layer</h1>
         <p className="text-muted-foreground text-sm">{layer.title}</p>
