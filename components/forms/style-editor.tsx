@@ -1,7 +1,23 @@
 'use client'
 
-import { Label } from '@/components/ui/label'
+import { ColorInput } from '@/components/custom/color-input'
+import { OpacitySlider } from '@/components/custom/opacity-slider'
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { LayerStyle } from '@/lib/supabase/types'
 
 type StyleEditorProps = {
@@ -17,163 +33,137 @@ export function StyleEditor({ value, onChange }: StyleEditorProps) {
   const classified = Boolean(value.classify?.property)
 
   return (
-    <fieldset className="space-y-3 rounded-lg border p-4">
-      <legend className="px-2 font-medium text-sm">Estilo</legend>
+    <FieldSet className="rounded-lg border p-4">
+      <FieldLegend variant="label">Estilo</FieldLegend>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="style-type">Tipo de geometria</FieldLabel>
+          <Select
+            value={layerType}
+            onValueChange={next => update({ type: next as LayerStyle['type'] })}
+          >
+            <SelectTrigger id="style-type" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="fill">Polígono (fill)</SelectItem>
+                <SelectItem value="line">Linha (line)</SelectItem>
+                <SelectItem value="circle">Ponto (circle)</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </Field>
 
-      <div className="space-y-2">
-        <Label htmlFor="style-type">Tipo de geometria</Label>
-        <select
-          id="style-type"
-          value={layerType}
-          onChange={e =>
-            update({ type: e.target.value as LayerStyle['type'] })
-          }
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <option value="fill">Polígono (fill)</option>
-          <option value="line">Linha (line)</option>
-          <option value="circle">Ponto (circle)</option>
-        </select>
-      </div>
-
-      {layerType === 'fill' && (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            {!classified && (
-              <div className="space-y-1">
-                <Label htmlFor="fill-color">Cor de preenchimento</Label>
-                <Input
+        {layerType === 'fill' && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {!classified && (
+                <ColorInput
                   id="fill-color"
-                  type="color"
+                  label="Cor de preenchimento"
                   value={value.fillColor ?? '#3b82f6'}
-                  onChange={e => update({ fillColor: e.target.value })}
+                  onChange={fillColor => update({ fillColor })}
                 />
-              </div>
-            )}
-            <div className="space-y-1">
-              <Label htmlFor="fill-opacity">Opacidade</Label>
-              <Input
+              )}
+              <OpacitySlider
                 id="fill-opacity"
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
+                label="Opacidade"
                 value={value.fillOpacity ?? 1}
-                onChange={e =>
-                  update({ fillOpacity: Number.parseFloat(e.target.value) })
-                }
+                onChange={fillOpacity => update({ fillOpacity })}
               />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="stroke-color">Cor da borda</Label>
-              <Input
+            <div className="grid grid-cols-2 gap-3">
+              <ColorInput
                 id="stroke-color"
-                type="color"
+                label="Cor da borda"
                 value={value.strokeColor ?? '#000000'}
-                onChange={e => update({ strokeColor: e.target.value })}
+                onChange={strokeColor => update({ strokeColor })}
               />
+              <Field>
+                <FieldLabel htmlFor="stroke-width">Largura da borda</FieldLabel>
+                <Input
+                  id="stroke-width"
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="0.5"
+                  value={value.strokeWidth ?? 1}
+                  onChange={event =>
+                    update({
+                      strokeWidth: Number.parseFloat(event.target.value),
+                    })
+                  }
+                />
+              </Field>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="stroke-width">Largura da borda</Label>
+          </>
+        )}
+
+        {layerType === 'line' && (
+          <div className="grid grid-cols-3 gap-3">
+            {!classified && (
+              <ColorInput
+                label="Cor"
+                value={value.strokeColor ?? '#000000'}
+                onChange={strokeColor => update({ strokeColor })}
+              />
+            )}
+            <Field>
+              <FieldLabel>Largura</FieldLabel>
               <Input
-                id="stroke-width"
                 type="number"
-                min="0"
-                max="10"
+                min="0.5"
+                max="20"
                 step="0.5"
-                value={value.strokeWidth ?? 1}
-                onChange={e =>
-                  update({ strokeWidth: Number.parseFloat(e.target.value) })
+                value={value.strokeWidth ?? 2}
+                onChange={event =>
+                  update({
+                    strokeWidth: Number.parseFloat(event.target.value),
+                  })
                 }
               />
-            </div>
-          </div>
-        </>
-      )}
-
-      {layerType === 'line' && (
-        <div className="grid grid-cols-3 gap-3">
-          {!classified && (
-            <div className="space-y-1">
-              <Label>Cor</Label>
-              <Input
-                type="color"
-                value={value.strokeColor ?? '#000000'}
-                onChange={e => update({ strokeColor: e.target.value })}
-              />
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label>Largura</Label>
-            <Input
-              type="number"
-              min="0.5"
-              max="20"
-              step="0.5"
-              value={value.strokeWidth ?? 2}
-              onChange={e =>
-                update({ strokeWidth: Number.parseFloat(e.target.value) })
-              }
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Opacidade</Label>
-            <Input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
+            </Field>
+            <OpacitySlider
+              label="Opacidade"
               value={value.strokeOpacity ?? 1}
-              onChange={e =>
-                update({ strokeOpacity: Number.parseFloat(e.target.value) })
-              }
+              onChange={strokeOpacity => update({ strokeOpacity })}
             />
           </div>
-        </div>
-      )}
+        )}
 
-      {layerType === 'circle' && (
-        <div className="grid grid-cols-3 gap-3">
-          {!classified && (
-            <div className="space-y-1">
-              <Label>Cor</Label>
-              <Input
-                type="color"
+        {layerType === 'circle' && (
+          <div className="grid grid-cols-3 gap-3">
+            {!classified && (
+              <ColorInput
+                label="Cor"
                 value={value.circleColor ?? '#3b82f6'}
-                onChange={e => update({ circleColor: e.target.value })}
+                onChange={circleColor => update({ circleColor })}
               />
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label>Raio</Label>
-            <Input
-              type="number"
-              min="1"
-              max="30"
-              step="1"
-              value={value.circleRadius ?? 6}
-              onChange={e =>
-                update({ circleRadius: Number.parseFloat(e.target.value) })
-              }
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Opacidade</Label>
-            <Input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
+            )}
+            <Field>
+              <FieldLabel>Raio</FieldLabel>
+              <Input
+                type="number"
+                min="1"
+                max="30"
+                step="1"
+                value={value.circleRadius ?? 6}
+                onChange={event =>
+                  update({
+                    circleRadius: Number.parseFloat(event.target.value),
+                  })
+                }
+              />
+            </Field>
+            <OpacitySlider
+              label="Opacidade"
               value={value.circleOpacity ?? 1}
-              onChange={e =>
-                update({ circleOpacity: Number.parseFloat(e.target.value) })
-              }
+              onChange={circleOpacity => update({ circleOpacity })}
             />
           </div>
-        </div>
-      )}
-    </fieldset>
+        )}
+      </FieldGroup>
+    </FieldSet>
   )
 }

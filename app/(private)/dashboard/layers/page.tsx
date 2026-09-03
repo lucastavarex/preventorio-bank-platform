@@ -1,6 +1,6 @@
 import { PlusIcon } from 'lucide-react'
 import Link from 'next/link'
-import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
+import { ConfirmDeleteButton } from '@/components/custom/confirm-delete-button'
 import { Button } from '@/components/ui/button'
 import {
   Card,

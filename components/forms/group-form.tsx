@@ -1,8 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import type { Group } from '@/lib/supabase/types'
 
 type GroupFormProps = {
@@ -11,56 +14,63 @@ type GroupFormProps = {
 }
 
 export function GroupForm({ action, defaultValues }: GroupFormProps) {
+  const [isPrivate, setIsPrivate] = useState(defaultValues?.is_private ?? false)
+
   return (
-    <form action={action} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="title">Título</Label>
-        <Input
-          id="title"
-          name="title"
-          required
-          defaultValue={defaultValues?.title}
-          placeholder="Ex: Infraestrutura"
-        />
-      </div>
+    <form action={action} className="flex flex-col gap-4">
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="title">Título</FieldLabel>
+          <Input
+            id="title"
+            name="title"
+            required
+            defaultValue={defaultValues?.title}
+            placeholder="Ex: Infraestrutura"
+          />
+        </Field>
 
-      <div className="space-y-2">
-        <Label htmlFor="description">Descrição</Label>
-        <textarea
-          id="description"
-          name="description"
-          className="flex min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          defaultValue={defaultValues?.description ?? ''}
-          placeholder="Descrição do grupo"
-        />
-      </div>
+        <Field>
+          <FieldLabel htmlFor="description">Descrição</FieldLabel>
+          <Textarea
+            id="description"
+            name="description"
+            defaultValue={defaultValues?.description ?? ''}
+            placeholder="Descrição do grupo"
+          />
+        </Field>
 
-      <div className="space-y-2">
-        <Label htmlFor="notes">Anotações</Label>
-        <textarea
-          id="notes"
-          name="notes"
-          className="flex min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          defaultValue={defaultValues?.notes ?? ''}
-          placeholder="Anotações internas (não visíveis no geoportal)"
-        />
-      </div>
+        <Field>
+          <FieldLabel htmlFor="notes">Anotações</FieldLabel>
+          <Textarea
+            id="notes"
+            name="notes"
+            defaultValue={defaultValues?.notes ?? ''}
+            placeholder="Anotações internas (não visíveis no geoportal)"
+          />
+        </Field>
 
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="is_private"
-          name="is_private"
-          defaultChecked={defaultValues?.is_private ?? false}
-          className="size-4 rounded border-input"
-        />
-        <Label htmlFor="is_private">
-          Privado (visível apenas para usuários autenticados)
-        </Label>
-      </div>
+        <Field orientation="horizontal">
+          <Checkbox
+            id="is_private"
+            checked={isPrivate}
+            onCheckedChange={checked => setIsPrivate(checked === true)}
+          />
+          <FieldLabel htmlFor="is_private">
+            Privado (visível apenas para usuários autenticados)
+          </FieldLabel>
+          <input
+            type="hidden"
+            name="is_private"
+            value={isPrivate ? 'on' : ''}
+          />
+        </Field>
+      </FieldGroup>
 
-      <div className="flex justify-end pt-4">
-        <Button type="submit">Salvar</Button>
+      <div className="flex justify-end pt-6">
+        <Button type="submit" size="lg" className="h-12 min-w-56 px-10 text-base">
+          Salvar
+        </Button>
       </div>
     </form>
   )

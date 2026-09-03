@@ -1,5 +1,6 @@
 'use client'
 
+import { Maximize2Icon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
   BaseMap,
@@ -7,6 +8,7 @@ import {
   type MapCamera,
 } from '@/components/map/base-map'
 import { GeoJSONLayer } from '@/components/map/geojson-layer'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -60,17 +62,18 @@ export function LayerPreview({ data, style, bounds }: LayerPreviewProps) {
             <GeoJSONLayer id="preview-thumb" data={data} style={style} />
           )}
         </BaseMap>
-        <button
+        <Button
           type="button"
-          className="group absolute inset-0 z-10 cursor-pointer"
+          variant="ghost"
+          className="absolute inset-0 z-10 h-auto w-full whitespace-normal rounded-none hover:bg-background/80 hover:cursor-pointer"
           onClick={() => setOpen(true)}
           aria-label="Clique para ampliar a pré-visualização"
         >
-          <span className="absolute inset-0 bg-white/0 transition-colors group-hover:bg-white/60" />
-          <span className="relative flex h-full items-center justify-center px-4 text-center text-sm font-medium text-black opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="text-center flex items-center justify-center gap-2 text-base font-medium text-foreground opacity-0 transition-opacity group-hover/button:opacity-100">
             Clique para ampliar a pré-visualização
+            <Maximize2Icon className="size-4" />
           </span>
-        </button>
+        </Button>
       </div>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>

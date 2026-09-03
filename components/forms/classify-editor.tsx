@@ -2,9 +2,26 @@
 
 import { EyeIcon, EyeOffIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { ColorInput } from '@/components/custom/color-input'
+import { PalettePicker } from '@/components/custom/palette-picker'
 import { Button } from '@/components/ui/button'
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   CLASSIFY_PALETTES,
   DEFAULT_PALETTE_ID,
@@ -16,7 +33,8 @@ import {
   recolorClasses,
 } from '@/lib/classify'
 import type { ClassifyClass, LayerStyle } from '@/lib/supabase/types'
-import { cn } from '@/lib/utils'
+
+const NONE_PROPERTY = '__none__'
 
 type ClassifyEditorProps = {
   data: GeoJSON.FeatureCollection | null
@@ -128,172 +146,175 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
   }
 
   return (
-    <fieldset className="space-y-3 rounded-lg border p-4">
-      <legend className="px-2 font-medium text-sm">Classificação graduada</legend>
+    <FieldSet className="rounded-lg border p-4">
+      <FieldLegend variant="label">Classificação graduada</FieldLegend>
+      <FieldGroup>
+        {!data && (
+          <FieldDescription>
+            Envie um GeoJSON para classificar pelos atributos.
+          </FieldDescription>
+        )}
 
-      {!data && (
-        <p className="text-muted-foreground text-sm">
-          Envie um GeoJSON para classificar pelos atributos.
-        </p>
-      )}
+        {data && fields.length === 0 && (
+          <FieldDescription>
+            Nenhum campo numérico encontrado no GeoJSON.
+          </FieldDescription>
+        )}
 
-      {data && fields.length === 0 && (
-        <p className="text-muted-foreground text-sm">
-          Nenhum campo numérico encontrado no GeoJSON.
-        </p>
-      )}
+        {data && fields.length > 0 && (
+          <>
+            <Field>
+              <FieldLabel htmlFor="classify-property">
+                Campo numérico
+              </FieldLabel>
+              <Select
+                value={property || NONE_PROPERTY}
+                onValueChange={next =>
+                  handlePropertyChange(next === NONE_PROPERTY ? '' : next)
+                }
+              >
+                <SelectTrigger id="classify-property" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value={NONE_PROPERTY}>
+                      Cor única (sem classificação)
+                    </SelectItem>
+                    {fields.map(field => (
+                      <SelectItem key={field} value={field}>
+                        {field}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
 
-      {data && fields.length > 0 && (
-        <>
-          <div className="space-y-2">
-            <Label htmlFor="classify-property">Campo numérico</Label>
-            <select
-              id="classify-property"
-              value={property}
-              onChange={e => handlePropertyChange(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="">Cor única (sem classificação)</option>
-              {fields.map(field => (
-                <option key={field} value={field}>
-                  {field}
-                </option>
-              ))}
-            </select>
-          </div>
+            {property && (
+              <>
+                <div className="flex flex-wrap items-end gap-2">
+                  <Field className="w-24">
+                    <FieldLabel htmlFor="class-count">Classes</FieldLabel>
+                    <Input
+                      id="class-count"
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={classCount}
+                      onChange={event =>
+                        setClassCount(
+                          Number.parseInt(event.target.value, 10) || 1
+                        )
+                      }
+                    />
+                  </Field>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerate}
+                  >
+                    Gerar classes
+                  </Button>
+                </div>
 
-          {property && (
-            <>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="w-24 space-y-1">
-                  <Label htmlFor="class-count">Classes</Label>
-                  <Input
-                    id="class-count"
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={classCount}
-                    onChange={e =>
-                      setClassCount(
-                        Number.parseInt(e.target.value, 10) || 1
-                      )
-                    }
+                <Field>
+                  <FieldLabel>Paleta</FieldLabel>
+                  <PalettePicker
+                    value={paletteId}
+                    options={CLASSIFY_PALETTES}
+                    onChange={handlePaletteChange}
                   />
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={handleGenerate}>
-                  Gerar classes
-                </Button>
-              </div>
+                </Field>
 
-              <div className="space-y-2">
-                <Label>Paleta</Label>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                  {CLASSIFY_PALETTES.map(palette => (
-                    <button
-                      key={palette.id}
-                      type="button"
-                      title={palette.label}
-                      onClick={() => handlePaletteChange(palette.id)}
-                      className={cn(
-                        'flex flex-col gap-1 rounded-md border p-1.5 text-left text-xs',
-                        palette.id === paletteId
-                          ? 'border-ring ring-2 ring-ring/50'
-                          : 'border-input hover:bg-muted'
-                      )}
-                    >
-                      <span
-                        className="h-4 w-full rounded-sm"
-                        style={{
-                          background: `linear-gradient(to right, ${palette.stops.join(',')})`,
-                        }}
-                      />
-                      <span className="truncate">{palette.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {classify && classify.classes.length > 0 && (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-[auto_2.5rem_5.75rem_1fr_1fr_1fr_auto] items-center gap-1.5 text-muted-foreground text-xs">
-                    <span />
-                    <span>Cor</span>
-                    <span>Hex</span>
-                    <span>Min</span>
-                    <span>Max</span>
-                    <span>Rótulo</span>
-                    <span />
-                  </div>
-                  {classify.classes.map((cls, i) => (
-                    <div
-                      key={`${cls.min}-${cls.max}-${i}`}
-                      className="grid grid-cols-[auto_2.5rem_5.75rem_1fr_1fr_1fr_auto] items-center gap-1.5"
-                    >
-                      <button
-                        type="button"
-                        title={cls.visible === false ? 'Mostrar' : 'Ocultar'}
-                        onClick={() =>
-                          updateClass(i, { visible: cls.visible === false })
-                        }
-                      >
-                        {cls.visible === false ? (
-                          <EyeOffIcon className="size-4 text-muted-foreground" />
-                        ) : (
-                          <EyeIcon className="size-4 text-primary" />
-                        )}
-                      </button>
-                      <ClassColorInput
-                        color={cls.color}
-                        onChange={color => updateClass(i, { color })}
-                      />
-                      <Input
-                        type="number"
-                        step="any"
-                        value={cls.min}
-                        onChange={e =>
-                          updateClass(i, {
-                            min: Number.parseFloat(e.target.value),
-                          })
-                        }
-                      />
-                      <Input
-                        type="number"
-                        step="any"
-                        value={cls.max}
-                        onChange={e =>
-                          updateClass(i, {
-                            max: Number.parseFloat(e.target.value),
-                          })
-                        }
-                      />
-                      <Input
-                        value={cls.label}
-                        onChange={e => updateClass(i, { label: e.target.value })}
-                        placeholder="Rótulo"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive"
-                        onClick={() => removeClass(i)}
-                      >
-                        <Trash2Icon className="size-4" />
-                      </Button>
+                {classify && classify.classes.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <div className="grid grid-cols-[auto_2.5rem_5.75rem_1fr_1fr_1fr_auto] items-center gap-1.5 text-muted-foreground text-xs">
+                      <span />
+                      <span>Cor</span>
+                      <span>Hex</span>
+                      <span>Min</span>
+                      <span>Max</span>
+                      <span>Rótulo</span>
+                      <span />
                     </div>
-                  ))}
-                </div>
-              )}
+                    {classify.classes.map((cls, i) => (
+                      <div
+                        key={`${cls.min}-${cls.max}-${i}`}
+                        className="grid grid-cols-[auto_2.5rem_5.75rem_1fr_1fr_1fr_auto] items-center gap-1.5"
+                      >
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title={cls.visible === false ? 'Mostrar' : 'Ocultar'}
+                          onClick={() =>
+                            updateClass(i, { visible: cls.visible === false })
+                          }
+                        >
+                          {cls.visible === false ? <EyeOffIcon /> : <EyeIcon />}
+                        </Button>
+                        <ClassColorInput
+                          color={cls.color}
+                          onChange={color => updateClass(i, { color })}
+                        />
+                        <Input
+                          type="number"
+                          step="any"
+                          value={cls.min}
+                          onChange={event =>
+                            updateClass(i, {
+                              min: Number.parseFloat(event.target.value),
+                            })
+                          }
+                        />
+                        <Input
+                          type="number"
+                          step="any"
+                          value={cls.max}
+                          onChange={event =>
+                            updateClass(i, {
+                              max: Number.parseFloat(event.target.value),
+                            })
+                          }
+                        />
+                        <Input
+                          value={cls.label}
+                          onChange={event =>
+                            updateClass(i, { label: event.target.value })
+                          }
+                          placeholder="Rótulo"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive"
+                          onClick={() => removeClass(i)}
+                        >
+                          <Trash2Icon />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-              <Button type="button" variant="outline" size="sm" onClick={addClass}>
-                <PlusIcon className="mr-1 size-4" />
-                Adicionar classe
-              </Button>
-            </>
-          )}
-        </>
-      )}
-    </fieldset>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addClass}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Adicionar classe
+                </Button>
+              </>
+            )}
+          </>
+        )}
+      </FieldGroup>
+    </FieldSet>
   )
 }
 
@@ -323,20 +344,19 @@ function ClassColorInput({
 
   return (
     <>
-      <Input
-        type="color"
+      <ColorInput
         value={normalized}
-        onChange={e => onChange(e.target.value)}
-        className="h-8 p-0.5"
+        onChange={onChange}
+        className="h-8"
         aria-label="Cor"
       />
       <Input
         value={hexText}
-        onChange={e => setHexText(e.target.value)}
+        onChange={event => setHexText(event.target.value)}
         onBlur={commitHex}
-        onKeyDown={e => {
-          if (e.key !== 'Enter') return
-          e.preventDefault()
+        onKeyDown={event => {
+          if (event.key !== 'Enter') return
+          event.preventDefault()
           commitHex()
         }}
         className="font-mono text-xs"

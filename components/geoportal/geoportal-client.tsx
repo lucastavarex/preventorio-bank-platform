@@ -15,6 +15,11 @@ import { GeoportalLegend } from '@/components/geoportal/geoportal-legend'
 import { BaseMap, type BaseMapHandle } from '@/components/map/base-map'
 import { GeoJSONLayer } from '@/components/map/geojson-layer'
 import { Button } from '@/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { hasGraduatedClassify } from '@/lib/classify'
 import type { Group, Layer } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
@@ -240,11 +245,7 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
         className="absolute top-4 left-4 z-10 shadow-md"
         onClick={() => setSidebarOpen(prev => !prev)}
       >
-        {sidebarOpen ? (
-          <XIcon className="size-4" />
-        ) : (
-          <LayersIcon className="size-4" />
-        )}
+        {sidebarOpen ? <XIcon /> : <LayersIcon />}
       </Button>
 
       <aside
@@ -263,75 +264,82 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
           )}
 
           {groupsWithLayers.map(group => (
-            <div key={group.id} className="mb-2">
-              <button
-                type="button"
-                className="flex w-full items-center gap-1 rounded px-1 py-1 text-left font-medium text-sm hover:bg-muted"
-                onClick={() => toggleGroup(group.id)}
-              >
-                {expandedGroups.has(group.id) ? (
-                  <ChevronDownIcon className="size-4 shrink-0" />
-                ) : (
-                  <ChevronRightIcon className="size-4 shrink-0" />
-                )}
-                {group.title}
-                {group.is_private && (
-                  <span className="ml-auto rounded bg-orange-100 px-1 py-0.5 text-orange-700 text-[10px]">
-                    Privado
-                  </span>
-                )}
-              </button>
-
-              {expandedGroups.has(group.id) && (
-                <div className="ml-3 space-y-0.5 border-l pl-3">
-                  {group.layers.map(layer => (
-                    <div
-                      key={layer.id}
-                      className="flex items-center gap-1.5 rounded px-1 py-1 text-sm hover:bg-muted"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleLayer(layer.id)}
-                        className="shrink-0"
-                        title={
-                          visibleLayers.has(layer.id) ? 'Ocultar' : 'Mostrar'
-                        }
-                      >
-                        {visibleLayers.has(layer.id) ? (
-                          <EyeIcon className="size-4 text-primary" />
-                        ) : (
-                          <EyeOffIcon className="size-4 text-muted-foreground" />
-                        )}
-                      </button>
-                      <span className="flex-1 truncate">{layer.title}</span>
-                      {layerErrors[layer.id] && (
-                        <span
-                          className="shrink-0 text-[10px] text-destructive"
-                          title={layerErrors[layer.id]}
-                        >
-                          erro
-                        </span>
-                      )}
-                      {layer.bbox && layer.bbox.length >= 4 && (
-                        <button
-                          type="button"
-                          onClick={() => zoomToLayer(layer)}
-                          className="shrink-0 text-muted-foreground hover:text-foreground"
-                          title="Zoom para o layer"
-                        >
-                          <LocateIcon className="size-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {group.layers.length === 0 && (
-                    <p className="py-1 text-muted-foreground text-xs">
-                      Nenhum layer
-                    </p>
+            <Collapsible
+              key={group.id}
+              open={expandedGroups.has(group.id)}
+              onOpenChange={() => toggleGroup(group.id)}
+              className="mb-2"
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-auto w-full justify-start px-1 py-1 font-medium"
+                >
+                  {expandedGroups.has(group.id) ? (
+                    <ChevronDownIcon data-icon="inline-start" />
+                  ) : (
+                    <ChevronRightIcon data-icon="inline-start" />
                   )}
-                </div>
-              )}
-            </div>
+                  <span className="truncate">{group.title}</span>
+                  {group.is_private && (
+                    <span className="ml-auto rounded bg-orange-100 px-1 py-0.5 text-orange-700 text-[10px]">
+                      Privado
+                    </span>
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent className="ml-3 flex flex-col gap-0.5 border-l pl-3">
+                {group.layers.map(layer => (
+                  <div
+                    key={layer.id}
+                    className="flex items-center gap-1.5 rounded px-1 py-1 text-sm hover:bg-muted"
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => toggleLayer(layer.id)}
+                      title={
+                        visibleLayers.has(layer.id) ? 'Ocultar' : 'Mostrar'
+                      }
+                    >
+                      {visibleLayers.has(layer.id) ? (
+                        <EyeIcon />
+                      ) : (
+                        <EyeOffIcon />
+                      )}
+                    </Button>
+                    <span className="flex-1 truncate">{layer.title}</span>
+                    {layerErrors[layer.id] && (
+                      <span
+                        className="shrink-0 text-[10px] text-destructive"
+                        title={layerErrors[layer.id]}
+                      >
+                        erro
+                      </span>
+                    )}
+                    {layer.bbox && layer.bbox.length >= 4 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => zoomToLayer(layer)}
+                        title="Zoom para o layer"
+                      >
+                        <LocateIcon />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {group.layers.length === 0 && (
+                  <p className="py-1 text-muted-foreground text-xs">
+                    Nenhum layer
+                  </p>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           ))}
         </div>
       </aside>

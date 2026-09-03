@@ -1,9 +1,25 @@
 'use client'
 
 import { PlusIcon, Trash2Icon } from 'lucide-react'
+import { ColorInput } from '@/components/custom/color-input'
 import { Button } from '@/components/ui/button'
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { LegendConfig, LegendItem } from '@/lib/supabase/types'
 
 type LegendEditorProps = {
@@ -31,65 +47,66 @@ export function LegendEditor({ value, onChange }: LegendEditorProps) {
   }
 
   return (
-    <fieldset className="space-y-3 rounded-lg border p-4">
-      <legend className="px-2 font-medium text-sm">Legenda</legend>
+    <FieldSet className="rounded-lg border p-4">
+      <FieldLegend variant="label">Legenda</FieldLegend>
+      <FieldGroup>
+        {items.length === 0 && (
+          <FieldDescription>Nenhum item de legenda.</FieldDescription>
+        )}
 
-      {items.length === 0 && (
-        <p className="text-muted-foreground text-sm">
-          Nenhum item de legenda.
-        </p>
-      )}
-
-      {items.map((item, i) => (
-        <div key={i} className="flex items-end gap-2">
-          <div className="flex-1 space-y-1">
-            <Label>Rótulo</Label>
-            <Input
-              value={item.label}
-              onChange={e => updateItem(i, { label: e.target.value })}
-              placeholder="Ex: Área de risco alto"
-            />
-          </div>
-          <div className="w-16 space-y-1">
-            <Label>Cor</Label>
-            <Input
-              type="color"
+        {items.map((item, i) => (
+          <div key={i} className="flex items-end gap-2">
+            <Field className="flex-1">
+              <FieldLabel>Rótulo</FieldLabel>
+              <Input
+                value={item.label}
+                onChange={event => updateItem(i, { label: event.target.value })}
+                placeholder="Ex: Área de risco alto"
+              />
+            </Field>
+            <ColorInput
+              label="Cor"
               value={item.color}
-              onChange={e => updateItem(i, { color: e.target.value })}
+              onChange={color => updateItem(i, { color })}
+              className="w-16"
             />
-          </div>
-          <div className="w-24 space-y-1">
-            <Label>Tipo</Label>
-            <select
-              value={item.type ?? 'fill'}
-              onChange={e =>
-                updateItem(i, {
-                  type: e.target.value as LegendItem['type'],
-                })
-              }
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+            <Field className="w-28">
+              <FieldLabel>Tipo</FieldLabel>
+              <Select
+                value={item.type ?? 'fill'}
+                onValueChange={next =>
+                  updateItem(i, { type: next as LegendItem['type'] })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="fill">Fill</SelectItem>
+                    <SelectItem value="line">Line</SelectItem>
+                    <SelectItem value="circle">Circle</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => removeItem(i)}
+              className="text-destructive"
             >
-              <option value="fill">Fill</option>
-              <option value="line">Line</option>
-              <option value="circle">Circle</option>
-            </select>
+              <Trash2Icon />
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => removeItem(i)}
-            className="text-destructive"
-          >
-            <Trash2Icon className="size-4" />
-          </Button>
-        </div>
-      ))}
+        ))}
 
-      <Button type="button" variant="outline" size="sm" onClick={addItem}>
-        <PlusIcon className="mr-1 size-4" />
-        Adicionar item
-      </Button>
-    </fieldset>
+        <Button type="button" variant="outline" size="sm" onClick={addItem}>
+          <PlusIcon data-icon="inline-start" />
+          Adicionar item
+        </Button>
+      </FieldGroup>
+    </FieldSet>
   )
 }

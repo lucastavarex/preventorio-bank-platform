@@ -1,14 +1,30 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { GeojsonDropzone } from '@/components/custom/geojson-dropzone'
 import { ClassifyEditor } from '@/components/forms/classify-editor'
-import { GeojsonDropzone } from '@/components/forms/geojson-dropzone'
 import { LayerPreview } from '@/components/forms/layer-preview'
 import { LegendEditor } from '@/components/forms/legend-editor'
 import { StyleEditor } from '@/components/forms/style-editor'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
+import { Textarea } from '@/components/ui/textarea'
 import { hasGraduatedClassify, legendFromClassify } from '@/lib/classify'
 import { computeBBox, parseFeatureCollection } from '@/lib/geojson'
 import type {
@@ -41,6 +57,8 @@ export function LayerForm({
   const [legend, setLegend] = useState<LegendConfig>(
     defaultValues?.legend ?? {}
   )
+  const [groupId, setGroupId] = useState(defaultValues?.group_id ?? '')
+  const [isPrivate, setIsPrivate] = useState(defaultValues?.is_private ?? false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -124,6 +142,8 @@ export function LayerForm({
         : legend
       formData.set('style', JSON.stringify(style))
       formData.set('legend', JSON.stringify(legendToSave))
+      formData.set('group_id', groupId)
+      formData.set('is_private', isPrivate ? 'on' : '')
       if (selectedFile) {
         formData.set('geojson', selectedFile)
       }
@@ -139,7 +159,7 @@ export function LayerForm({
         setPending(false)
       }
     },
-    [action, selectedFile, style, legend]
+    [action, selectedFile, style, legend, groupId, isPrivate]
   )
 
   const previewBounds = useMemo(
@@ -149,11 +169,11 @@ export function LayerForm({
   const hasExistingFile = Boolean(defaultValues?.geojson_storage_path)
 
   return (
-    <form action={handleSubmit} className="space-y-6">
+    <form action={handleSubmit} className="flex flex-col gap-6">
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Título</Label>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="title">Título</FieldLabel>
             <Input
               id="title"
               name="title"
@@ -161,53 +181,54 @@ export function LayerForm({
               defaultValue={defaultValues?.title}
               placeholder="Ex: Áreas de risco"
             />
-          </div>
+          </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="group_id">Grupo</Label>
-            <select
-              id="group_id"
-              name="group_id"
-              required
-              defaultValue={defaultValues?.group_id}
+          <Field data-disabled={groups.length === 0 || undefined}>
+            <FieldLabel htmlFor="group_id">Grupo</FieldLabel>
+            <Select
+              value={groupId}
+              onValueChange={setGroupId}
               disabled={groups.length === 0}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
-              <option value="">Selecione um grupo</option>
-              {groups.map(g => (
-                <option key={g.id} value={g.id}>
-                  {g.title}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="group_id" className="w-full">
+                <SelectValue placeholder="Selecione um grupo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {groups.map(group => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.title}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             {groups.length === 0 && (
-              <p className="text-destructive text-sm">
+              <FieldError>
                 Crie um grupo antes de cadastrar um layer.
-              </p>
+              </FieldError>
             )}
-          </div>
+          </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
-            <textarea
+          <Field>
+            <FieldLabel htmlFor="description">Descrição</FieldLabel>
+            <Textarea
               id="description"
               name="description"
-              className="flex min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               defaultValue={defaultValues?.description ?? ''}
               placeholder="Descrição do layer"
             />
-          </div>
+          </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Anotações</Label>
-            <textarea
+          <Field>
+            <FieldLabel htmlFor="notes">Anotações</FieldLabel>
+            <Textarea
               id="notes"
               name="notes"
-              className="flex min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               defaultValue={defaultValues?.notes ?? ''}
               placeholder="Anotações internas"
             />
-          </div>
+          </Field>
 
           <GeojsonDropzone
             file={selectedFile}
@@ -219,21 +240,19 @@ export function LayerForm({
             onClear={clearFile}
           />
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
+          <Field orientation="horizontal">
+            <Checkbox
               id="is_private"
-              name="is_private"
-              defaultChecked={defaultValues?.is_private ?? false}
-              className="size-4 rounded border-input"
+              checked={isPrivate}
+              onCheckedChange={checked => setIsPrivate(checked === true)}
             />
-            <Label htmlFor="is_private">
+            <FieldLabel htmlFor="is_private">
               Privado (visível apenas para leitores e admins)
-            </Label>
-          </div>
-        </div>
+            </FieldLabel>
+          </Field>
+        </FieldGroup>
 
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           <LayerPreview data={preview} style={style} bounds={previewBounds} />
 
           <ClassifyEditor
@@ -248,21 +267,21 @@ export function LayerForm({
         </div>
       </div>
 
-      {submitError && (
-        <p className="text-destructive text-sm" role="alert">
-          {submitError}
-        </p>
-      )}
+      {submitError && <FieldError role="alert">{submitError}</FieldError>}
 
-      <div className="flex justify-end pt-4">
+      <div className="flex justify-end pt-6">
         <Button
           type="submit"
+          size="lg"
+          className="h-12 min-w-56 px-10 text-base"
           disabled={
             pending ||
             groups.length === 0 ||
+            !groupId ||
             (geojsonRequired && !hasExistingFile && !selectedFile)
           }
         >
+          {pending && <Spinner data-icon="inline-start" />}
           {pending ? 'Salvando…' : 'Salvar'}
         </Button>
       </div>
