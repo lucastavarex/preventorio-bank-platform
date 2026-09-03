@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ClassifyEditor } from '@/components/forms/classify-editor'
+import { GeojsonDropzone } from '@/components/forms/geojson-dropzone'
 import { LayerPreview } from '@/components/forms/layer-preview'
 import { LegendEditor } from '@/components/forms/legend-editor'
 import { StyleEditor } from '@/components/forms/style-editor'
@@ -33,6 +34,9 @@ export function LayerForm({
   geojsonRequired = false,
 }: LayerFormProps) {
   const [preview, setPreview] = useState<GeoJSON.FeatureCollection | null>(null)
+  const [savedPreview, setSavedPreview] =
+    useState<GeoJSON.FeatureCollection | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [style, setStyle] = useState<LayerStyle>(defaultValues?.style ?? {})
   const [legend, setLegend] = useState<LegendConfig>(
     defaultValues?.legend ?? {}
@@ -54,7 +58,9 @@ export function LayerForm({
       })
       .then(text => {
         if (cancelled) return
-        setPreview(parseFeatureCollection(text))
+        const geojson = parseFeatureCollection(text)
+        setSavedPreview(geojson)
+        setPreview(geojson)
         setFileError(null)
       })
       .catch(() => {
@@ -67,18 +73,25 @@ export function LayerForm({
     }
   }, [defaultValues?.geojson_storage_path, storageBaseUrl])
 
-  const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (!file) return
+  const applyFile = useCallback(
+    (file: File) => {
+      const name = file.name.toLowerCase()
+      if (!name.endsWith('.geojson') && !name.endsWith('.json')) {
+        setSelectedFile(null)
+        setFileError('Envie um arquivo .geojson ou .json.')
+        return
+      }
+
       const reader = new FileReader()
       reader.onload = () => {
         try {
           const geojson = parseFeatureCollection(reader.result as string)
           setPreview(geojson)
+          setSelectedFile(file)
           setFileError(null)
         } catch (error) {
-          setPreview(null)
+          setSelectedFile(null)
+          setPreview(savedPreview)
           setFileError(
             error instanceof Error ? error.message : 'Arquivo GeoJSON inválido.'
           )
@@ -86,8 +99,14 @@ export function LayerForm({
       }
       reader.readAsText(file)
     },
-    []
+    [savedPreview]
   )
+
+  const clearFile = useCallback(() => {
+    setSelectedFile(null)
+    setFileError(null)
+    setPreview(savedPreview)
+  }, [savedPreview])
 
   const handleStyleChange = useCallback((next: LayerStyle) => {
     setStyle(next)
@@ -105,6 +124,9 @@ export function LayerForm({
         : legend
       formData.set('style', JSON.stringify(style))
       formData.set('legend', JSON.stringify(legendToSave))
+      if (selectedFile) {
+        formData.set('geojson', selectedFile)
+      }
       try {
         await action(formData)
       } catch (error) {
@@ -117,7 +139,7 @@ export function LayerForm({
         setPending(false)
       }
     },
-    [action, style, legend]
+    [action, selectedFile, style, legend]
   )
 
   const previewBounds = useMemo(
@@ -187,25 +209,15 @@ export function LayerForm({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="geojson">Arquivo GeoJSON</Label>
-            <Input
-              id="geojson"
-              name="geojson"
-              type="file"
-              accept=".geojson,.json"
-              required={geojsonRequired && !hasExistingFile}
-              onChange={handleFileChange}
-            />
-            {hasExistingFile && !geojsonRequired && (
-              <p className="text-muted-foreground text-xs">
-                Deixe em branco para manter o arquivo atual.
-              </p>
-            )}
-            {fileError && (
-              <p className="text-destructive text-sm">{fileError}</p>
-            )}
-          </div>
+          <GeojsonDropzone
+            file={selectedFile}
+            featureCount={preview?.features.length}
+            hasExistingFile={hasExistingFile}
+            error={fileError}
+            required={geojsonRequired && !hasExistingFile}
+            onFile={applyFile}
+            onClear={clearFile}
+          />
 
           <div className="flex items-center gap-2">
             <input
@@ -243,7 +255,14 @@ export function LayerForm({
       )}
 
       <div className="flex justify-end pt-4">
-        <Button type="submit" disabled={pending || groups.length === 0}>
+        <Button
+          type="submit"
+          disabled={
+            pending ||
+            groups.length === 0 ||
+            (geojsonRequired && !hasExistingFile && !selectedFile)
+          }
+        >
           {pending ? 'Salvando…' : 'Salvar'}
         </Button>
       </div>
