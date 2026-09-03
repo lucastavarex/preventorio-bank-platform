@@ -2,7 +2,13 @@ import { clerkMiddleware } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 
 const AUTH_REDIRECT_ROUTES = ['/sign-in', '/sign-up', '/forgot-password']
-const PUBLIC_ROUTES = ['/', '/geoportal', '/sobre', ...AUTH_REDIRECT_ROUTES]
+const PUBLIC_ROUTES = [
+  '/',
+  '/geoportal',
+  '/sobre',
+  '/maplibre',
+  ...AUTH_REDIRECT_ROUTES,
+]
 
 function matchesRoute(pathname: string, route: string) {
   if (route === '/') {
@@ -38,7 +44,7 @@ export const proxy = clerkProxy
 
 export const config = {
   matcher: [
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|mjs|map|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
     '/(api|trpc)(.*)',
     '/__clerk/:path*',
   ],

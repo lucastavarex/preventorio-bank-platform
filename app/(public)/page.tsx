@@ -18,9 +18,7 @@ export default function HomePage() {
       <main className="flex flex-1 flex-col items-center justify-center p-6 md:p-10">
         <div className="flex w-full max-w-4xl flex-col gap-8">
           <div className="flex flex-col items-center gap-2 text-center">
-            <h1 className="font-bold text-2xl md:text-3xl">
-              Portal do Geoportal
-            </h1>
+            <h1 className="font-bold text-2xl md:text-3xl">Geoportal</h1>
             <p className="max-w-lg text-balance text-muted-foreground">
               Explore o mapa ou entre no painel interno (somente convite).
             </p>
@@ -46,8 +44,7 @@ export default function HomePage() {
               <CardHeader>
                 <CardTitle>Portal interno</CardTitle>
                 <CardDescription>
-                  Gestão do geoportal. Acesso somente para quem recebeu
-                  convite.
+                  Gestão do geoportal. Acesso somente para quem recebeu convite.
                 </CardDescription>
               </CardHeader>
               <CardFooter className="mt-auto w-full">

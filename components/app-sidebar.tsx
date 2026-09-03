@@ -1,7 +1,7 @@
 'use client'
 
 import { useUser } from '@clerk/nextjs'
-import { BookOpenIcon, MapIcon } from 'lucide-react'
+import { BookOpenIcon, FolderIcon, LayersIcon, MapIcon } from 'lucide-react'
 import type * as React from 'react'
 import { type NavItem, NavMain } from '@/components/nav-main'
 import { NavProjects } from '@/components/nav-projects'
@@ -30,18 +30,32 @@ const data: {
       isActive: true,
       items: [
         {
-          title: 'Gerenciar mapas',
-          url: '/dashboard/geoportal/gerenciar-mapas',
+          title: 'Acessar o Geoportal',
+          url: '/geoportal',
+          newTab: true,
+        },
+      ],
+    },
+    {
+      title: 'Gestão',
+      url: '#',
+      icon: <FolderIcon />,
+      isActive: true,
+      items: [
+        {
+          title: 'Grupos',
+          url: '/dashboard/groups',
+          adminOnly: true,
+        },
+        {
+          title: 'Layers',
+          url: '/dashboard/layers',
+          adminOnly: true,
         },
         {
           title: 'Gerenciar usuários',
           url: '/dashboard/geoportal/gerenciar-usuarios',
           adminOnly: true,
-        },
-        {
-          title: 'Acessar o Geoportal',
-          url: '/geoportal',
-          newTab: true,
         },
       ],
     },

@@ -105,8 +105,36 @@ Estas opções **não estão no código**. Se o Dashboard estiver errado, o app 
    Sem isso, `getRole()` cai no fallback `currentUser()` (chamada à Backend API). Com o claim, o papel vem no JWT já verificado pelo middleware.
 
 6. **Convites** devem usar a URL de sign-up desta aplicação, para o ticket cair em `/sign-up?__clerk_ticket=…`.
+7. **Integração Clerk + Supabase** (obrigatória para layers privados). Ver seção 4.4.
 
 Checklist operacional: `npx clerk@latest doctor` no projeto.
+
+### 4.4 Clerk como third-party auth no Supabase
+
+Não use JWT template nem custom signing key. O template antigo do Clerk para Supabase está depreciado. O Supabase verifica o **token de sessão do Clerk** via JWKS.
+
+**No Clerk**
+
+1. Sessions → Customize session token. **Desligue** Custom signing key.
+2. Claims do session token:
+
+```json
+{
+  "aud": "authenticated",
+  "role": "authenticated",
+  "email": "{{user.primary_email_address}}",
+  "user_role": "{{user.public_metadata.role}}"
+}
+```
+
+3. Ative a integração oficial: [Connect with Supabase](https://dashboard.clerk.com/setup/supabase) → Activate. Copie o **Clerk domain** (ex.: `funky-bluejay-8133.clerk.accounts.dev`).
+
+**No Supabase**
+
+1. Authentication → Sign In / Providers → Add provider → Clerk
+2. Cole o Clerk domain
+
+`role` precisa ser `"authenticated"` (papel do Postgres). O papel do app (`admin` / `reader`) vai em `user_role`, lido por `public.requesting_role()`.
 
 ### 4.3 O que o `clerk init` não deve fazer
 
