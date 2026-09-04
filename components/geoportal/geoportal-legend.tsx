@@ -33,7 +33,7 @@ export function GeoportalLegend({
   return (
     <Collapsible
       defaultOpen
-      className="group/legend absolute right-3 top-32 z-10 w-56 rounded-lg border bg-background/95 shadow-lg backdrop-blur-sm"
+      className="group/legend absolute right-3 top-42 z-10 w-56 rounded-lg border bg-background/95 shadow-lg backdrop-blur-sm"
     >
       <CollapsibleTrigger asChild>
         <Button

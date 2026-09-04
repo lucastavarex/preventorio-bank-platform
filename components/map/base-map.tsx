@@ -54,6 +54,8 @@ type BaseMapProps = {
   mapStyle?: StyleSpecification
   /** Extra controls stacked below the zoom buttons (e.g. basemap switcher). */
   trailingControls?: ReactNode
+  /** When false, hides the built-in zoom / trailing control stack. Default true if interactive. */
+  showControls?: boolean
 }
 
 export function readCamera(map: maplibregl.Map): MapCamera {
@@ -77,6 +79,7 @@ export const BaseMap = forwardRef<BaseMapHandle, BaseMapProps>(function BaseMap(
     camera,
     mapStyle = OSM_STYLE,
     trailingControls,
+    showControls,
   },
   ref
 ) {
@@ -86,6 +89,7 @@ export const BaseMap = forwardRef<BaseMapHandle, BaseMapProps>(function BaseMap(
   boundsRef.current = bounds
   const cameraRef = useRef(camera)
   cameraRef.current = camera
+  const controlsVisible = showControls ?? interactive
 
   useEffect(() => {
     setMounted(true)
@@ -159,7 +163,7 @@ export const BaseMap = forwardRef<BaseMapHandle, BaseMapProps>(function BaseMap(
         {children}
       </MapGL>
 
-      {interactive && (
+      {controlsVisible && (
         <div className="absolute top-4 right-4 z-10 flex flex-col gap-1.5">
           <MapZoomControls getMap={() => mapRef.current?.getMap()} />
           {trailingControls}

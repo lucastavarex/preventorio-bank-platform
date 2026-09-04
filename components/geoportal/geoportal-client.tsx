@@ -4,6 +4,7 @@ import {
   BringToFrontIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  Columns2Icon,
   EyeIcon,
   EyeOffIcon,
   LayersIcon,
@@ -15,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type MapLayerMouseEvent, Popup } from 'react-map-gl/maplibre'
 import { BasemapSwitcher } from '@/components/geoportal/basemap-switcher'
 import { GeoportalLegend } from '@/components/geoportal/geoportal-legend'
+import { LayerCompare } from '@/components/geoportal/layer-compare'
 import { BaseMap, type BaseMapHandle, type MapCamera } from '@/components/map/base-map'
 import {
   type BasemapId,
@@ -57,6 +59,7 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [basemapId, setBasemapId] = useState<BasemapId>(DEFAULT_BASEMAP_ID)
   const [mapCamera, setMapCamera] = useState<MapCamera | null>(null)
+  const [compareMode, setCompareMode] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(groupsWithLayers[0] ? [groupsWithLayers[0].id] : [])
   )
@@ -253,6 +256,63 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
       .filter(layer => visibleLayers.has(layer.id) && layerData[layer.id])
   }, [layerOrder, layersById, visibleLayers, layerData])
 
+  /** Bottom layer → left; top layer → right. */
+  const comparePair = useMemo(() => {
+    if (stackedVisibleLayers.length !== 2) return null
+    const [leftLayer, rightLayer] = stackedVisibleLayers
+    if (!layerData[leftLayer.id] || !layerData[rightLayer.id]) return null
+    return { leftLayer, rightLayer }
+  }, [stackedVisibleLayers, layerData])
+
+  const canCompare = Boolean(comparePair)
+
+  useEffect(() => {
+    if (compareMode && !comparePair) {
+      setCompareMode(false)
+    }
+  }, [compareMode, comparePair])
+
+  const enterCompareMode = useCallback(() => {
+    if (!comparePair) return
+    const camera = mapRef.current?.getCamera()
+    if (camera) setMapCamera(camera)
+    setPopup(null)
+    setCompareMode(true)
+  }, [comparePair])
+
+  const exitCompareMode = useCallback((camera: MapCamera | undefined) => {
+    if (camera) setMapCamera(camera)
+    setCompareMode(false)
+  }, [])
+
+  const mapControls = (
+    <>
+      <BasemapSwitcher
+        value={basemapId}
+        onChange={handleBasemapChange}
+        className="shadow-md"
+      />
+      {!compareMode && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon"
+          className="shadow-md"
+          disabled={!canCompare}
+          title={
+            canCompare
+              ? 'Comparar os 2 layers visíveis'
+              : 'Ative exatamente 2 layers para comparar'
+          }
+          aria-label="Comparar layers"
+          onClick={enterCompareMode}
+        >
+          <Columns2Icon />
+        </Button>
+      )}
+    </>
+  )
+
   const interactiveLayerIds = useMemo(
     () =>
       [...stackedVisibleLayers]
@@ -292,67 +352,80 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
   return (
     <div className="relative h-svh w-full">
       <div className="absolute inset-0">
-        <BaseMap
-          key={basemapId}
-          ref={mapRef}
-          mapStyle={getBasemapStyle(basemapId)}
-          camera={mapCamera}
-          onClick={handleMapClick}
-          interactiveLayerIds={interactiveLayerIds}
-          trailingControls={
-            <BasemapSwitcher
-              value={basemapId}
-              onChange={handleBasemapChange}
-              className="shadow-md"
-            />
-          }
-        >
-          {/* Top-first so beforeId always points at an already-mounted layer. */}
-          {[...stackedVisibleLayers].reverse().map((layer, index, stackTopFirst) => {
-            const data = layerData[layer.id]
-            if (!data) return null
-            const above = stackTopFirst[index - 1]
-            return (
-              <GeoJSONLayer
-                key={layer.id}
-                id={layer.id}
-                data={data}
-                style={layer.style}
-                visible
-                opacity={layerOpacity[layer.id]}
-                beforeId={above?.id}
-                hiddenClassIndexes={hiddenClasses[layer.id]}
-              />
-            )
-          })}
+        {compareMode && comparePair ? (
+          <LayerCompare
+            leftLayer={comparePair.leftLayer}
+            rightLayer={comparePair.rightLayer}
+            leftData={layerData[comparePair.leftLayer.id]}
+            rightData={layerData[comparePair.rightLayer.id]}
+            leftOpacity={layerOpacity[comparePair.leftLayer.id]}
+            rightOpacity={layerOpacity[comparePair.rightLayer.id]}
+            leftHiddenClasses={hiddenClasses[comparePair.leftLayer.id]}
+            rightHiddenClasses={hiddenClasses[comparePair.rightLayer.id]}
+            mapStyle={getBasemapStyle(basemapId)}
+            camera={mapCamera}
+            trailingControls={mapControls}
+            onExit={exitCompareMode}
+          />
+        ) : (
+          <BaseMap
+            key={basemapId}
+            ref={mapRef}
+            mapStyle={getBasemapStyle(basemapId)}
+            camera={mapCamera}
+            onClick={handleMapClick}
+            interactiveLayerIds={interactiveLayerIds}
+            trailingControls={mapControls}
+          >
+            {/* Top-first so beforeId always points at an already-mounted layer. */}
+            {[...stackedVisibleLayers]
+              .reverse()
+              .map((layer, index, stackTopFirst) => {
+                const data = layerData[layer.id]
+                if (!data) return null
+                const above = stackTopFirst[index - 1]
+                return (
+                  <GeoJSONLayer
+                    key={layer.id}
+                    id={layer.id}
+                    data={data}
+                    style={layer.style}
+                    visible
+                    opacity={layerOpacity[layer.id]}
+                    beforeId={above?.id}
+                    hiddenClassIndexes={hiddenClasses[layer.id]}
+                  />
+                )
+              })}
 
-          {popup && (
-            <Popup
-              longitude={popup.lng}
-              latitude={popup.lat}
-              onClose={() => setPopup(null)}
-              closeOnClick={false}
-              maxWidth="320px"
-            >
-              <div className="max-h-48 overflow-auto text-xs">
-                {Object.keys(popup.properties).length === 0 ? (
-                  <p className="text-muted-foreground">Sem atributos</p>
-                ) : (
-                  <table className="w-full">
-                    <tbody>
-                      {Object.entries(popup.properties).map(([key, val]) => (
-                        <tr key={key} className="border-b last:border-0">
-                          <td className="pr-2 font-medium">{key}</td>
-                          <td>{String(val ?? '')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </Popup>
-          )}
-        </BaseMap>
+            {popup && (
+              <Popup
+                longitude={popup.lng}
+                latitude={popup.lat}
+                onClose={() => setPopup(null)}
+                closeOnClick={false}
+                maxWidth="320px"
+              >
+                <div className="max-h-48 overflow-auto text-xs">
+                  {Object.keys(popup.properties).length === 0 ? (
+                    <p className="text-muted-foreground">Sem atributos</p>
+                  ) : (
+                    <table className="w-full">
+                      <tbody>
+                        {Object.entries(popup.properties).map(([key, val]) => (
+                          <tr key={key} className="border-b last:border-0">
+                            <td className="pr-2 font-medium">{key}</td>
+                            <td>{String(val ?? '')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </Popup>
+            )}
+          </BaseMap>
+        )}
       </div>
 
       <Button
