@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Providers } from '@/components/providers'
 import './globals.css'
+import { Toaster } from '@/components/ui/sonner'
 
 const fontSans = Inter({
   subsets: ['latin'],
@@ -28,7 +29,10 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${fontSans.variable} ${fontMono.variable} antialiased`}>
         <ClerkProvider>
-          <Providers>{children}</Providers>
+          <Providers>
+            <Toaster />
+            {children}
+          </Providers>
         </ClerkProvider>
       </body>
     </html>

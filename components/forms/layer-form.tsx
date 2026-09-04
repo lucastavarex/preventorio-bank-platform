@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { toast } from 'sonner'
 import { hasGraduatedClassify, legendFromClassify } from '@/lib/classify'
 import { computeBBox, parseFeatureCollection } from '@/lib/geojson'
 import type {
@@ -60,7 +61,6 @@ export function LayerForm({
   const [groupId, setGroupId] = useState(defaultValues?.group_id ?? '')
   const [isPrivate, setIsPrivate] = useState(defaultValues?.is_private ?? false)
   const [fileError, setFileError] = useState<string | null>(null)
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
   useEffect(() => {
@@ -135,7 +135,6 @@ export function LayerForm({
 
   const handleSubmit = useCallback(
     async (formData: FormData) => {
-      setSubmitError(null)
       setPending(true)
       const legendToSave = hasGraduatedClassify(style)
         ? legendFromClassify(style.classify, style.type)
@@ -151,7 +150,7 @@ export function LayerForm({
         await action(formData)
       } catch (error) {
         if (isNextRedirect(error)) throw error
-        setSubmitError(
+        toast.error(
           error instanceof Error
             ? error.message
             : 'Não foi possível salvar o layer.'
@@ -266,8 +265,6 @@ export function LayerForm({
           )}
         </div>
       </div>
-
-      {submitError && <FieldError role="alert">{submitError}</FieldError>}
 
       <div className="flex justify-end pt-6">
         <Button
