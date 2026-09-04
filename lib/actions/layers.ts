@@ -19,16 +19,21 @@ import type {
 
 function revalidateLayerPages() {
   revalidatePath('/dashboard/layers')
+  revalidatePath('/dashboard/groups', 'layout')
   revalidatePath('/geoportal')
 }
 
-export async function getLayers(): Promise<LayerWithGroup[]> {
+export async function getLayers(groupId?: string): Promise<LayerWithGroup[]> {
   await requireAdmin()
   const supabase = createServiceClient()
-  const { data, error } = await supabase
+  const query = supabase
     .from('layers')
     .select('*, groups(title)')
     .order('sort_order', { ascending: true })
+
+  const { data, error } = await (groupId
+    ? query.eq('group_id', groupId)
+    : query)
 
   if (error) throw new Error(error.message)
   return data as LayerWithGroup[]

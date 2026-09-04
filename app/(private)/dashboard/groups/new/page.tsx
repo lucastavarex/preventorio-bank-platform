@@ -6,7 +6,7 @@ export default async function NewGroupPage() {
   await requireAdmin()
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="font-bold text-2xl">Novo grupo</h1>
         <p className="text-muted-foreground text-sm">

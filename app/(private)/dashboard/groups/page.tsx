@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import {
   Card,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -65,7 +66,12 @@ export default async function GroupsPage() {
                   {group.description || 'Sem descrição'}
                 </CardDescription>
               </CardHeader>
-              <div className="flex items-center justify-end gap-2 border-t px-6 py-3">
+              <CardFooter className="justify-end gap-2 bg-transparent">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/dashboard/layers?group=${group.id}`}>
+                    Ver layers
+                  </Link>
+                </Button>
                 <Button variant="outline" size="sm" asChild>
                   <Link href={`/dashboard/groups/${group.id}`}>Editar</Link>
                 </Button>
@@ -73,7 +79,7 @@ export default async function GroupsPage() {
                   action={deleteGroup.bind(null, group.id)}
                   message={`Excluir o grupo "${group.title}" e todos os layers associados?`}
                 />
-              </div>
+              </CardFooter>
             </Card>
           ))}
         </div>
