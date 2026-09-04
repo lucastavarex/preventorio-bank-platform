@@ -244,10 +244,7 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
                       <span />
                     </div>
                     {classify.classes.map((cls, i) => (
-                      <div
-                        key={`${cls.min}-${cls.max}-${i}`}
-                        className={CLASS_ROW_GRID}
-                      >
+                      <div key={i} className={CLASS_ROW_GRID}>
                         <Button
                           type="button"
                           variant="ghost"
@@ -263,25 +260,15 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
                           color={cls.color}
                           onChange={color => updateClass(i, { color })}
                         />
-                        <Input
-                          type="number"
-                          step="any"
+                        <ClassNumberInput
                           value={cls.min}
-                          onChange={event =>
-                            updateClass(i, {
-                              min: Number.parseFloat(event.target.value),
-                            })
-                          }
+                          onChange={min => updateClass(i, { min })}
+                          aria-label="Mínimo"
                         />
-                        <Input
-                          type="number"
-                          step="any"
+                        <ClassNumberInput
                           value={cls.max}
-                          onChange={event =>
-                            updateClass(i, {
-                              max: Number.parseFloat(event.target.value),
-                            })
-                          }
+                          onChange={max => updateClass(i, { max })}
+                          aria-label="Máximo"
                         />
                         <Input
                           value={cls.label}
@@ -319,6 +306,63 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
         )}
       </FieldGroup>
     </FieldSet>
+  )
+}
+
+function formatClassNumber(value: number) {
+  if (!Number.isFinite(value)) return ''
+  return String(value).replace('.', ',')
+}
+
+function parseClassNumber(raw: string) {
+  const normalized = raw.trim().replace(',', '.')
+  if (!normalized || normalized === '-' || normalized === '.' || normalized === '-.') {
+    return null
+  }
+  const parsed = Number.parseFloat(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function ClassNumberInput({
+  value,
+  onChange,
+  'aria-label': ariaLabel,
+}: {
+  value: number
+  onChange: (value: number) => void
+  'aria-label': string
+}) {
+  const formatted = formatClassNumber(value)
+  const [text, setText] = useState(formatted)
+
+  useEffect(() => {
+    setText(formatted)
+  }, [formatted])
+
+  const commit = () => {
+    const next = parseClassNumber(text)
+    if (next === null) {
+      setText(formatted)
+      return
+    }
+    onChange(next)
+    setText(formatClassNumber(next))
+  }
+
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onChange={event => setText(event.target.value)}
+      onBlur={commit}
+      onKeyDown={event => {
+        if (event.key !== 'Enter') return
+        event.preventDefault()
+        commit()
+      }}
+      aria-label={ariaLabel}
+    />
   )
 }
 

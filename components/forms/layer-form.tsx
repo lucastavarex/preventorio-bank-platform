@@ -1,11 +1,21 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GeojsonDropzone } from '@/components/custom/geojson-dropzone'
 import { ClassifyEditor } from '@/components/forms/classify-editor'
 import { LayerPreview } from '@/components/forms/layer-preview'
 import { LegendEditor } from '@/components/forms/legend-editor'
 import { StyleEditor } from '@/components/forms/style-editor'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -62,6 +72,8 @@ export function LayerForm({
   const [isPrivate, setIsPrivate] = useState(defaultValues?.is_private ?? false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const [confirmPublicOpen, setConfirmPublicOpen] = useState(false)
+  const pendingFormDataRef = useRef<FormData | null>(null)
 
   useEffect(() => {
     if (!defaultValues?.geojson_storage_path || !storageBaseUrl) return
@@ -133,9 +145,9 @@ export function LayerForm({
     }
   }, [])
 
-  const handleSubmit = useCallback(
-    async (formData: FormData) => {
-      setPending(true)
+  const buildFormData = useCallback(
+    (form: HTMLFormElement) => {
+      const formData = new FormData(form)
       const legendToSave = hasGraduatedClassify(style)
         ? legendFromClassify(style.classify, style.type)
         : legend
@@ -146,6 +158,14 @@ export function LayerForm({
       if (selectedFile) {
         formData.set('geojson', selectedFile)
       }
+      return formData
+    },
+    [selectedFile, style, legend, groupId, isPrivate]
+  )
+
+  const save = useCallback(
+    async (formData: FormData) => {
+      setPending(true)
       try {
         await action(formData)
       } catch (error) {
@@ -158,8 +178,33 @@ export function LayerForm({
         setPending(false)
       }
     },
-    [action, selectedFile, style, legend, groupId, isPrivate]
+    [action]
   )
+
+  const handleSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      if (pending) return
+
+      const formData = buildFormData(event.currentTarget)
+
+      if (!isPrivate) {
+        pendingFormDataRef.current = formData
+        setConfirmPublicOpen(true)
+        return
+      }
+
+      void save(formData)
+    },
+    [pending, buildFormData, isPrivate, save]
+  )
+
+  const handleConfirmPublic = useCallback(() => {
+    const formData = pendingFormDataRef.current
+    pendingFormDataRef.current = null
+    setConfirmPublicOpen(false)
+    if (formData) void save(formData)
+  }, [save])
 
   const previewBounds = useMemo(
     () => (preview ? computeBBox(preview) : null),
@@ -168,121 +213,147 @@ export function LayerForm({
   const hasExistingFile = Boolean(defaultValues?.geojson_storage_path)
 
   return (
-    <form action={handleSubmit} className="flex flex-col gap-6">
-      <div className="grid gap-6 md:grid-cols-2">
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="title">Título</FieldLabel>
-            <Input
-              id="title"
-              name="title"
-              required
-              defaultValue={defaultValues?.title}
-              placeholder="Ex: Áreas de risco"
-            />
-          </Field>
+    <>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        <div className="grid gap-6 md:grid-cols-2">
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="title">Título</FieldLabel>
+              <Input
+                id="title"
+                name="title"
+                required
+                defaultValue={defaultValues?.title}
+                placeholder="Ex: Áreas de risco"
+              />
+            </Field>
 
-          <Field data-disabled={groups.length === 0 || undefined}>
-            <FieldLabel htmlFor="group_id">Grupo</FieldLabel>
-            <Select
-              value={groupId}
-              onValueChange={setGroupId}
-              disabled={groups.length === 0}
-            >
-              <SelectTrigger id="group_id" className="w-full">
-                <SelectValue placeholder="Selecione um grupo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {groups.map(group => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.title}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            {groups.length === 0 && (
-              <FieldError>
-                Crie um grupo antes de cadastrar um layer.
-              </FieldError>
+            <Field data-disabled={groups.length === 0 || undefined}>
+              <FieldLabel htmlFor="group_id">Grupo</FieldLabel>
+              <Select
+                value={groupId}
+                onValueChange={setGroupId}
+                disabled={groups.length === 0}
+              >
+                <SelectTrigger id="group_id" className="w-full">
+                  <SelectValue placeholder="Selecione um grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {groups.map(group => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.title}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {groups.length === 0 && (
+                <FieldError>
+                  Crie um grupo antes de cadastrar um layer.
+                </FieldError>
+              )}
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="description">Descrição</FieldLabel>
+              <Textarea
+                id="description"
+                name="description"
+                defaultValue={defaultValues?.description ?? ''}
+                placeholder="Descrição do layer"
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="notes">Anotações</FieldLabel>
+              <Textarea
+                id="notes"
+                name="notes"
+                defaultValue={defaultValues?.notes ?? ''}
+                placeholder="Anotações internas"
+              />
+            </Field>
+
+            <GeojsonDropzone
+              file={selectedFile}
+              featureCount={preview?.features.length}
+              hasExistingFile={hasExistingFile}
+              error={fileError}
+              required={geojsonRequired && !hasExistingFile}
+              onFile={applyFile}
+              onClear={clearFile}
+            />
+
+            <Field orientation="horizontal">
+              <Checkbox
+                id="is_private"
+                checked={isPrivate}
+                onCheckedChange={checked => setIsPrivate(checked === true)}
+              />
+              <FieldLabel htmlFor="is_private">
+                Privado (visível apenas para leitores e admins)
+              </FieldLabel>
+            </Field>
+          </FieldGroup>
+
+          <div className="flex flex-col gap-4">
+            <LayerPreview data={preview} style={style} bounds={previewBounds} />
+
+            <ClassifyEditor
+              data={preview}
+              value={style}
+              onChange={handleStyleChange}
+            />
+            <StyleEditor value={style} onChange={handleStyleChange} />
+            {!hasGraduatedClassify(style) && (
+              <LegendEditor value={legend} onChange={setLegend} />
             )}
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="description">Descrição</FieldLabel>
-            <Textarea
-              id="description"
-              name="description"
-              defaultValue={defaultValues?.description ?? ''}
-              placeholder="Descrição do layer"
-            />
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="notes">Anotações</FieldLabel>
-            <Textarea
-              id="notes"
-              name="notes"
-              defaultValue={defaultValues?.notes ?? ''}
-              placeholder="Anotações internas"
-            />
-          </Field>
-
-          <GeojsonDropzone
-            file={selectedFile}
-            featureCount={preview?.features.length}
-            hasExistingFile={hasExistingFile}
-            error={fileError}
-            required={geojsonRequired && !hasExistingFile}
-            onFile={applyFile}
-            onClear={clearFile}
-          />
-
-          <Field orientation="horizontal">
-            <Checkbox
-              id="is_private"
-              checked={isPrivate}
-              onCheckedChange={checked => setIsPrivate(checked === true)}
-            />
-            <FieldLabel htmlFor="is_private">
-              Privado (visível apenas para leitores e admins)
-            </FieldLabel>
-          </Field>
-        </FieldGroup>
-
-        <div className="flex flex-col gap-4">
-          <LayerPreview data={preview} style={style} bounds={previewBounds} />
-
-          <ClassifyEditor
-            data={preview}
-            value={style}
-            onChange={handleStyleChange}
-          />
-          <StyleEditor value={style} onChange={handleStyleChange} />
-          {!hasGraduatedClassify(style) && (
-            <LegendEditor value={legend} onChange={setLegend} />
-          )}
+          </div>
         </div>
-      </div>
 
-      <div className="flex justify-end pt-6">
-        <Button
-          type="submit"
-          size="lg"
-          className="h-12 min-w-56 px-10 text-base"
-          disabled={
-            pending ||
-            groups.length === 0 ||
-            !groupId ||
-            (geojsonRequired && !hasExistingFile && !selectedFile)
-          }
-        >
-          {pending && <Spinner data-icon="inline-start" />}
-          {pending ? 'Salvando…' : 'Salvar'}
-        </Button>
-      </div>
-    </form>
+        <div className="flex justify-end pt-6">
+          <Button
+            type="submit"
+            size="lg"
+            className="h-12 min-w-56 px-10 text-base"
+            disabled={
+              pending ||
+              groups.length === 0 ||
+              !groupId ||
+              (geojsonRequired && !hasExistingFile && !selectedFile)
+            }
+          >
+            {pending ? <Spinner data-icon="inline-start" /> : null}
+            {pending ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </div>
+      </form>
+
+      <AlertDialog
+        open={confirmPublicOpen}
+        onOpenChange={open => {
+          setConfirmPublicOpen(open)
+          if (!open) pendingFormDataRef.current = null
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publicar layer como público?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A opção de layer privado não está marcada. Se continuar, o layer
+              ficará público e qualquer pessoa poderá visualizá-lo no geoportal.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmPublic}>
+              Publicar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 
