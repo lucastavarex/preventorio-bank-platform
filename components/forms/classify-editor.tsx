@@ -36,6 +36,10 @@ import type { ClassifyClass, LayerStyle } from '@/lib/supabase/types'
 
 const NONE_PROPERTY = '__none__'
 
+/** Shared by header + rows so `auto` icon columns don't collapse differently. */
+const CLASS_ROW_GRID =
+  'grid grid-cols-[2rem_2.5rem_5.75rem_1fr_1fr_1fr_2rem] items-center gap-1.5'
+
 type ClassifyEditorProps = {
   data: GeoJSON.FeatureCollection | null
   value: LayerStyle
@@ -230,7 +234,7 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
 
                 {classify && classify.classes.length > 0 && (
                   <div className="flex flex-col gap-2">
-                    <div className="grid grid-cols-[auto_2.5rem_5.75rem_1fr_1fr_1fr_auto] items-center gap-1.5 text-muted-foreground text-xs">
+                    <div className={`${CLASS_ROW_GRID} text-muted-foreground text-xs`}>
                       <span />
                       <span>Cor</span>
                       <span>Hex</span>
@@ -242,7 +246,7 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
                     {classify.classes.map((cls, i) => (
                       <div
                         key={`${cls.min}-${cls.max}-${i}`}
-                        className="grid grid-cols-[auto_2.5rem_5.75rem_1fr_1fr_1fr_auto] items-center gap-1.5"
+                        className={CLASS_ROW_GRID}
                       >
                         <Button
                           type="button"
