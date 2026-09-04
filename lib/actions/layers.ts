@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { computeBBox, parseFeatureCollection } from '@/lib/geojson'
-import { requireAdmin } from '@/lib/roles.server'
+import { getRole, requireAdmin } from '@/lib/roles.server'
 import {
   createAnonServerClient,
   createServerClient,
@@ -66,16 +66,31 @@ export async function getLayer(id: string): Promise<LayerWithGroup> {
 }
 
 export async function getGroupsWithLayers() {
-  const query = (client: ReturnType<typeof createServerClient>) =>
+  const role = await getRole()
+  const canReadPrivate = role === 'admin' || role === 'reader'
+
+  const query = (
+    client:
+      | ReturnType<typeof createServerClient>
+      | ReturnType<typeof createServiceClient>
+      | ReturnType<typeof createAnonServerClient>
+  ) =>
     client.from('groups').select('*, layers(*)').order('sort_order', {
       ascending: true,
     })
 
-  const authenticated = await query(createServerClient())
-  const result =
-    authenticated.error && isJwtKeyError(authenticated.error.message)
-      ? await query(createAnonServerClient())
-      : authenticated
+  // App roles come from Clerk (getRole). Session JWT often lacks user_role for
+  // Supabase RLS, so privileged readers bypass RLS via service client.
+  let result
+  if (canReadPrivate) {
+    result = await query(createServiceClient())
+  } else {
+    const authenticated = await query(createServerClient())
+    result =
+      authenticated.error && isJwtKeyError(authenticated.error.message)
+        ? await query(createAnonServerClient())
+        : authenticated
+  }
 
   if (result.error) throw new Error(result.error.message)
 

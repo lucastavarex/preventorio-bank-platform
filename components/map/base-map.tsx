@@ -16,9 +16,10 @@ import {
 import MapGL, {
   type MapLayerMouseEvent,
   type MapRef,
-  NavigationControl,
 } from 'react-map-gl/maplibre'
-import { OSM_STYLE } from '@/components/map/osm-style'
+import type { StyleSpecification } from 'maplibre-gl'
+import { OSM_STYLE } from '@/components/map/basemap-styles'
+import { MapZoomControls } from '@/components/map/map-zoom-controls'
 
 if (typeof window !== 'undefined') {
   setWorkerUrl('/maplibre/maplibre-gl-worker.mjs')
@@ -27,7 +28,7 @@ if (typeof window !== 'undefined') {
 const INITIAL_VIEW = {
   longitude: -43.100004,
   latitude: -22.935535,
-  zoom: 14.5,
+  zoom: 16,
 } as const
 
 export type MapCamera = {
@@ -50,6 +51,9 @@ type BaseMapProps = {
   interactiveLayerIds?: string[]
   bounds?: number[] | null
   camera?: MapCamera | null
+  mapStyle?: StyleSpecification
+  /** Extra controls stacked below the zoom buttons (e.g. basemap switcher). */
+  trailingControls?: ReactNode
 }
 
 export function readCamera(map: maplibregl.Map): MapCamera {
@@ -71,6 +75,8 @@ export const BaseMap = forwardRef<BaseMapHandle, BaseMapProps>(function BaseMap(
     interactiveLayerIds,
     bounds,
     camera,
+    mapStyle = OSM_STYLE,
+    trailingControls,
   },
   ref
 ) {
@@ -130,27 +136,35 @@ export const BaseMap = forwardRef<BaseMapHandle, BaseMapProps>(function BaseMap(
   }
 
   return (
-    <MapGL
-      ref={mapRef}
-      mapLib={maplibregl}
-      mapStyle={OSM_STYLE}
-      initialViewState={camera ?? INITIAL_VIEW}
-      style={{ width: '100%', height: '100%' }}
-      interactive={interactive}
-      onClick={onClick}
-      interactiveLayerIds={interactiveLayerIds}
-      onLoad={e => {
-        e.target.resize()
-        const saved = cameraRef.current
-        if (saved) {
-          applyCamera(e.target, saved)
-          return
-        }
-        fitToBounds(e.target)
-      }}
-    >
-      <NavigationControl position="top-right" />
-      {children}
-    </MapGL>
+    <div className="relative h-full w-full">
+      <MapGL
+        ref={mapRef}
+        mapLib={maplibregl}
+        mapStyle={mapStyle}
+        initialViewState={camera ?? INITIAL_VIEW}
+        style={{ width: '100%', height: '100%' }}
+        interactive={interactive}
+        onClick={onClick}
+        interactiveLayerIds={interactiveLayerIds}
+        onLoad={e => {
+          e.target.resize()
+          const saved = cameraRef.current
+          if (saved) {
+            applyCamera(e.target, saved)
+            return
+          }
+          fitToBounds(e.target)
+        }}
+      >
+        {children}
+      </MapGL>
+
+      {interactive && (
+        <div className="absolute top-4 right-4 z-10 flex flex-col gap-1.5">
+          <MapZoomControls getMap={() => mapRef.current?.getMap()} />
+          {trailingControls}
+        </div>
+      )}
+    </div>
   )
 })

@@ -15,7 +15,10 @@ type GeoJSONLayerProps = {
   data: GeoJSON.FeatureCollection
   style: LayerStyle
   visible?: boolean
+  /** Insert this stack before another map layer id (layers above in the stack). */
   beforeId?: string
+  /** Session opacity override (0–1), applied to fill/line/circle paint. */
+  opacity?: number
   hiddenClassIndexes?: Set<number>
 }
 
@@ -25,6 +28,7 @@ export function GeoJSONLayer({
   style,
   visible = true,
   beforeId,
+  opacity,
   hiddenClassIndexes,
 }: GeoJSONLayerProps) {
   const layerType = style.type ?? detectGeometryType(data)
@@ -45,7 +49,7 @@ export function GeoJSONLayer({
           'fill-color': classify
             ? classifyColorExpression(classify, fallback)
             : fallback,
-          'fill-opacity': style.fillOpacity ?? 1,
+          'fill-opacity': opacity ?? style.fillOpacity ?? 1,
         }
       }
       case 'line': {
@@ -55,7 +59,7 @@ export function GeoJSONLayer({
             ? classifyColorExpression(classify, fallback)
             : fallback,
           'line-width': style.strokeWidth ?? 2,
-          'line-opacity': style.strokeOpacity ?? 1,
+          'line-opacity': opacity ?? style.strokeOpacity ?? 1,
         }
       }
       case 'circle': {
@@ -65,23 +69,25 @@ export function GeoJSONLayer({
             ? classifyColorExpression(classify, fallback)
             : fallback,
           'circle-radius': style.circleRadius ?? 6,
-          'circle-opacity': style.circleOpacity ?? 1,
+          'circle-opacity': opacity ?? style.circleOpacity ?? 1,
         }
       }
       default:
-        return { 'fill-color': '#3b82f6', 'fill-opacity': 1 }
+        return { 'fill-color': '#3b82f6', 'fill-opacity': opacity ?? 1 }
     }
-  }, [layerType, style, classify])
+  }, [layerType, style, classify, opacity])
 
   const outlinePaint =
     layerType === 'fill'
       ? {
           'line-color': style.strokeColor ?? '#000000',
           'line-width': style.strokeWidth ?? 1,
-          'line-opacity': style.strokeOpacity ?? 1,
+          'line-opacity': opacity ?? style.strokeOpacity ?? 1,
         }
       : null
 
+  // Both layers share beforeId so they sit below the layer above. Adding fill
+  // then outline with the same beforeId yields fill < outline < beforeId.
   return (
     <Source id={id} type="geojson" data={data}>
       <MapLayer

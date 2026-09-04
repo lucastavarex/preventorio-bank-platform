@@ -33,7 +33,7 @@ export function GeoportalLegend({
   return (
     <Collapsible
       defaultOpen
-      className="group/legend absolute right-4 bottom-8 z-10 w-56 rounded-lg border bg-background/95 shadow-lg backdrop-blur-sm"
+      className="group/legend absolute right-3 top-32 z-10 w-56 rounded-lg border bg-background/95 shadow-lg backdrop-blur-sm"
     >
       <CollapsibleTrigger asChild>
         <Button
@@ -47,7 +47,7 @@ export function GeoportalLegend({
         </Button>
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="flex flex-col gap-3 px-3 pb-3">
+      <CollapsibleContent className="flex max-h-[calc(100vh-220px)] flex-col gap-3 overflow-y-auto px-3 pb-3">
         {layersWithLegend.map(layer => (
           <div key={layer.id} className="flex flex-col gap-1">
             <p className="font-medium text-xs">{layer.title}</p>
