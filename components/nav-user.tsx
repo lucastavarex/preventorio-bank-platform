@@ -2,6 +2,7 @@
 
 import { useClerk, useUser } from '@clerk/nextjs'
 import { BadgeCheckIcon, ChevronsUpDownIcon, LogOutIcon } from 'lucide-react'
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -235,9 +236,11 @@ function UserDropdown({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <BadgeCheckIcon />
-            Conta
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/conta">
+              <BadgeCheckIcon />
+              Conta
+            </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
