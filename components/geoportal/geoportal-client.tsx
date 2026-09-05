@@ -1,23 +1,19 @@
 'use client'
 
-import {
-  BringToFrontIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  Columns2Icon,
-  EyeIcon,
-  EyeOffIcon,
-  LayersIcon,
-  LocateIcon,
-  Loader2Icon,
-  XIcon,
-} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type MapLayerMouseEvent, Popup } from 'react-map-gl/maplibre'
-import { BasemapSwitcher } from '@/components/geoportal/basemap-switcher'
-import { GeoportalLegend } from '@/components/geoportal/geoportal-legend'
-import { LayerCompare } from '@/components/geoportal/layer-compare'
-import { BaseMap, type BaseMapHandle, type MapCamera } from '@/components/map/base-map'
+import { toast } from 'sonner'
+import { GeoportalSidebar } from '@/components/geoportal/geoportal-sidebar'
+import { GeoportalToolbar } from '@/components/geoportal/geoportal-toolbar'
+import {
+  LayerCompare,
+  type LayerCompareHandle,
+} from '@/components/geoportal/layer-compare'
+import {
+  BaseMap,
+  type BaseMapHandle,
+  type MapCamera,
+} from '@/components/map/base-map'
 import {
   type BasemapId,
   DEFAULT_BASEMAP_ID,
@@ -25,16 +21,9 @@ import {
   parseBasemapId,
 } from '@/components/map/basemap-styles'
 import { GeoJSONLayer } from '@/components/map/geojson-layer'
-import { Button } from '@/components/ui/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { Slider } from '@/components/ui/slider'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { hasGraduatedClassify } from '@/lib/classify'
 import type { Group, Layer, LayerStyle } from '@/lib/supabase/types'
-import { cn } from '@/lib/utils'
 
 type GroupWithLayers = Group & { layers: Layer[] }
 
@@ -52,17 +41,16 @@ type PopupInfo = {
 const BASEMAP_STORAGE_KEY = 'geoportal-basemap'
 
 export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
+  const rootRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<BaseMapHandle>(null)
+  const compareRef = useRef<LayerCompareHandle>(null)
   const layerDataRef = useRef<Record<string, GeoJSON.FeatureCollection>>({})
   const loadingRef = useRef<Set<string>>(new Set())
 
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [basemapId, setBasemapId] = useState<BasemapId>(DEFAULT_BASEMAP_ID)
   const [mapCamera, setMapCamera] = useState<MapCamera | null>(null)
   const [compareMode, setCompareMode] = useState(false)
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () => new Set(groupsWithLayers[0] ? [groupsWithLayers[0].id] : [])
-  )
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
     () => new Set()
   )
@@ -84,7 +72,9 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
   layerDataRef.current = layerData
 
   useEffect(() => {
-    setBasemapId(parseBasemapId(window.localStorage.getItem(BASEMAP_STORAGE_KEY)))
+    setBasemapId(
+      parseBasemapId(window.localStorage.getItem(BASEMAP_STORAGE_KEY))
+    )
   }, [])
 
   const handleBasemapChange = useCallback((id: BasemapId) => {
@@ -148,15 +138,6 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
     },
     [storageBaseUrl]
   )
-
-  const toggleGroup = useCallback((id: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
 
   const toggleClass = useCallback(
     (layerId: string, classIndex: number) => {
@@ -249,6 +230,38 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
     [enableLayer, zoomToLayer]
   )
 
+  const downloadLayer = useCallback(
+    async (layer: Layer) => {
+      if (!layer.geojson_storage_path) {
+        toast.error('Este layer não possui GeoJSON')
+        return
+      }
+
+      try {
+        const cached = layerDataRef.current[layer.id]
+        const blob = cached
+          ? new Blob([JSON.stringify(cached)], {
+              type: 'application/geo+json',
+            })
+          : await fetchLayerGeojsonBlob(
+              `${storageBaseUrl}/${layer.geojson_storage_path}`
+            )
+
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = geojsonFilename(layer.title)
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
+      } catch {
+        toast.error('Falha ao baixar GeoJSON')
+      }
+    },
+    [storageBaseUrl]
+  )
+
   const stackedVisibleLayers = useMemo(() => {
     return layerOrder
       .map(id => layersById.get(id))
@@ -285,33 +298,10 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
     setCompareMode(false)
   }, [])
 
-  const mapControls = (
-    <>
-      <BasemapSwitcher
-        value={basemapId}
-        onChange={handleBasemapChange}
-        className="shadow-md"
-      />
-      {!compareMode && (
-        <Button
-          type="button"
-          variant="secondary"
-          size="icon"
-          className="shadow-md"
-          disabled={!canCompare}
-          title={
-            canCompare
-              ? 'Comparar os 2 layers visíveis'
-              : 'Ative exatamente 2 layers para comparar'
-          }
-          aria-label="Comparar layers"
-          onClick={enterCompareMode}
-        >
-          <Columns2Icon />
-        </Button>
-      )}
-    </>
-  )
+  const getMap = useCallback(() => {
+    if (compareMode) return compareRef.current?.getMap()
+    return mapRef.current?.getMap()
+  }, [compareMode])
 
   const interactiveLayerIds = useMemo(
     () =>
@@ -347,266 +337,142 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
     [interactiveLayerIds]
   )
 
-  const activeLayers = stackedVisibleLayers
-
   return (
-    <div className="relative h-svh w-full">
-      <div className="absolute inset-0">
-        {compareMode && comparePair ? (
-          <LayerCompare
-            leftLayer={comparePair.leftLayer}
-            rightLayer={comparePair.rightLayer}
-            leftData={layerData[comparePair.leftLayer.id]}
-            rightData={layerData[comparePair.rightLayer.id]}
-            leftOpacity={layerOpacity[comparePair.leftLayer.id]}
-            rightOpacity={layerOpacity[comparePair.rightLayer.id]}
-            leftHiddenClasses={hiddenClasses[comparePair.leftLayer.id]}
-            rightHiddenClasses={hiddenClasses[comparePair.rightLayer.id]}
-            mapStyle={getBasemapStyle(basemapId)}
-            camera={mapCamera}
-            trailingControls={mapControls}
-            onExit={exitCompareMode}
-          />
-        ) : (
-          <BaseMap
-            key={basemapId}
-            ref={mapRef}
-            mapStyle={getBasemapStyle(basemapId)}
-            camera={mapCamera}
-            onClick={handleMapClick}
-            interactiveLayerIds={interactiveLayerIds}
-            trailingControls={mapControls}
-          >
-            {/* Top-first so beforeId always points at an already-mounted layer. */}
-            {[...stackedVisibleLayers]
-              .reverse()
-              .map((layer, index, stackTopFirst) => {
-                const data = layerData[layer.id]
-                if (!data) return null
-                const above = stackTopFirst[index - 1]
-                return (
-                  <GeoJSONLayer
-                    key={layer.id}
-                    id={layer.id}
-                    data={data}
-                    style={layer.style}
-                    visible
-                    opacity={layerOpacity[layer.id]}
-                    beforeId={above?.id}
-                    hiddenClassIndexes={hiddenClasses[layer.id]}
-                  />
-                )
-              })}
-
-            {popup && (
-              <Popup
-                longitude={popup.lng}
-                latitude={popup.lat}
-                onClose={() => setPopup(null)}
-                closeOnClick={false}
-                maxWidth="320px"
-              >
-                <div className="max-h-48 overflow-auto text-xs">
-                  {Object.keys(popup.properties).length === 0 ? (
-                    <p className="text-muted-foreground">Sem atributos</p>
-                  ) : (
-                    <table className="w-full">
-                      <tbody>
-                        {Object.entries(popup.properties).map(([key, val]) => (
-                          <tr key={key} className="border-b last:border-0">
-                            <td className="pr-2 font-medium">{key}</td>
-                            <td>{String(val ?? '')}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </Popup>
-            )}
-          </BaseMap>
-        )}
-      </div>
-
-      <Button
-        variant="secondary"
-        size="icon"
-        className="absolute top-4 left-4 z-10 shadow-md"
-        onClick={() => setSidebarOpen(prev => !prev)}
-      >
-        {sidebarOpen ? <XIcon /> : <LayersIcon />}
-      </Button>
-
-      <aside
-        className={cn(
-          'absolute top-16 left-4 z-10 w-80 max-h-[calc(100svh-5rem)] overflow-y-auto rounded-lg border bg-background/95 shadow-lg backdrop-blur-sm transition-transform',
-          !sidebarOpen && '-translate-x-[22rem]'
-        )}
-      >
-        <div className="p-4">
-          <h2 className="mb-3 font-semibold text-sm">Layers</h2>
-
-          {groupsWithLayers.length === 0 && (
-            <p className="text-muted-foreground text-sm">
-              Nenhum grupo cadastrado.
-            </p>
-          )}
-
-          {groupsWithLayers.map(group => (
-            <Collapsible
-              key={group.id}
-              open={expandedGroups.has(group.id)}
-              onOpenChange={() => toggleGroup(group.id)}
-              className="mb-2"
+    <TooltipProvider>
+      <div ref={rootRef} className="relative h-svh w-full">
+        <div className="absolute inset-0">
+          {compareMode && comparePair ? (
+            <LayerCompare
+              ref={compareRef}
+              leftLayer={comparePair.leftLayer}
+              rightLayer={comparePair.rightLayer}
+              leftData={layerData[comparePair.leftLayer.id]}
+              rightData={layerData[comparePair.rightLayer.id]}
+              leftOpacity={layerOpacity[comparePair.leftLayer.id]}
+              rightOpacity={layerOpacity[comparePair.rightLayer.id]}
+              leftHiddenClasses={hiddenClasses[comparePair.leftLayer.id]}
+              rightHiddenClasses={hiddenClasses[comparePair.rightLayer.id]}
+              mapStyle={getBasemapStyle(basemapId)}
+              camera={mapCamera}
+            />
+          ) : (
+            <BaseMap
+              key={basemapId}
+              ref={mapRef}
+              mapStyle={getBasemapStyle(basemapId)}
+              camera={mapCamera}
+              onClick={handleMapClick}
+              interactiveLayerIds={interactiveLayerIds}
+              showControls={false}
             >
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="flex h-auto w-full items-center gap-1.5 rounded-lg px-1 py-1 text-left text-sm font-bold hover:bg-muted"
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center">
-                    {expandedGroups.has(group.id) ? (
-                      <ChevronDownIcon className="size-4" />
-                    ) : (
-                      <ChevronRightIcon className="size-4" />
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{group.title}</span>
-                  {group.is_private && (
-                    <span className="shrink-0 rounded bg-orange-100 px-2 py-0.5 font-medium text-orange-700 text-[10px]">
-                      Privado
-                    </span>
-                  )}
-                </button>
-              </CollapsibleTrigger>
-
-              <CollapsibleContent className="ml-3 flex flex-col gap-1.5 border-l pl-3">
-                {group.layers.map(layer => {
-                  const isVisible = visibleLayers.has(layer.id)
-                  const isLoading = loadingLayers.has(layer.id)
-                  const canZoom = Boolean(layer.bbox && layer.bbox.length >= 4)
-                  const opacity =
-                    layerOpacity[layer.id] ?? defaultOpacity(layer.style)
-                  const isTop =
-                    layerOrder.length > 0 &&
-                    layerOrder[layerOrder.length - 1] === layer.id
-
+              {/* Top-first so beforeId always points at an already-mounted layer. */}
+              {[...stackedVisibleLayers]
+                .reverse()
+                .map((layer, index, stackTopFirst) => {
+                  const data = layerData[layer.id]
+                  if (!data) return null
+                  const above = stackTopFirst[index - 1]
                   return (
-                    <div key={layer.id} className="flex flex-col gap-1">
-                      <div className="flex h-6 items-center gap-1.5 text-sm">
-                        <button
-                          type="button"
-                          onClick={() => onLayerNameClick(layer)}
-                          title={
-                            isVisible
-                              ? canZoom
-                                ? 'Zoom para o layer'
-                                : layer.title
-                              : 'Mostrar layer'
-                          }
-                          className="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md bg-muted/60 px-2 text-left hover:bg-muted"
-                        >
-                          <span className="truncate">{layer.title}</span>
-                          {layerErrors[layer.id] && (
-                            <span
-                              className="shrink-0 text-[10px] text-destructive"
-                              title={layerErrors[layer.id]}
-                            >
-                              erro
-                            </span>
-                          )}
-                        </button>
-                        <div className="flex h-6 shrink-0 items-center gap-1">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="icon-xs"
-                            disabled={isLoading}
-                            onClick={() => toggleLayer(layer)}
-                            title={isVisible ? 'Ocultar' : 'Mostrar'}
-                          >
-                            {isLoading ? (
-                              <Loader2Icon className="animate-spin" />
-                            ) : isVisible ? (
-                              <EyeIcon />
-                            ) : (
-                              <EyeOffIcon />
-                            )}
-                          </Button>
-                          {canZoom && (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-xs"
-                              onClick={() => zoomToLayer(layer)}
-                              title="Zoom para o layer"
-                            >
-                              <LocateIcon />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {isVisible && (
-                        <div className="flex h-6 items-center gap-1.5 text-sm">
-                          <div className="flex h-6 min-w-0 flex-1 items-center gap-2 rounded-md bg-muted/60 px-2">
-                            <Slider
-                              min={0}
-                              max={1}
-                              step={0.05}
-                              value={[opacity]}
-                              onValueChange={values =>
-                                setLayerOpacityValue(layer.id, values[0] ?? 0)
-                              }
-                              className="min-w-0 flex-1"
-                              aria-label={`Opacidade de ${layer.title}`}
-                            />
-                            <span className="w-8 shrink-0 text-right text-[10px] text-muted-foreground tabular-nums">
-                              {Math.round(opacity * 100)}%
-                            </span>
-                          </div>
-                          <div className="flex h-6 shrink-0 items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-xs"
-                              disabled={isTop || layerOrder.length < 2}
-                              onClick={() => bringLayerToFront(layer.id)}
-                              title="Trazer para frente"
-                            >
-                              <BringToFrontIcon />
-                            </Button>
-                            {canZoom && <div className="size-6" aria-hidden />}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <GeoJSONLayer
+                      key={layer.id}
+                      id={layer.id}
+                      data={data}
+                      style={layer.style}
+                      visible
+                      opacity={layerOpacity[layer.id]}
+                      beforeId={above?.id}
+                      hiddenClassIndexes={hiddenClasses[layer.id]}
+                    />
                   )
                 })}
-                {group.layers.length === 0 && (
-                  <p className="py-1 text-muted-foreground text-xs">
-                    Nenhum layer
-                  </p>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
-          ))}
-        </div>
-      </aside>
 
-      {activeLayers.length > 0 && (
-        <GeoportalLegend
-          layers={activeLayers}
+              {popup && (
+                <Popup
+                  longitude={popup.lng}
+                  latitude={popup.lat}
+                  onClose={() => setPopup(null)}
+                  closeOnClick={false}
+                  maxWidth="320px"
+                >
+                  <div className="max-h-48 overflow-auto text-xs">
+                    {Object.keys(popup.properties).length === 0 ? (
+                      <p className="text-muted-foreground">Sem atributos</p>
+                    ) : (
+                      <table className="w-full">
+                        <tbody>
+                          {Object.entries(popup.properties).map(
+                            ([key, val]) => (
+                              <tr key={key} className="border-b last:border-0">
+                                <td className="pr-2 font-medium">{key}</td>
+                                <td>{String(val ?? '')}</td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </Popup>
+              )}
+            </BaseMap>
+          )}
+        </div>
+
+        <GeoportalSidebar
+          open={sidebarOpen}
+          onOpenChange={setSidebarOpen}
+          groupsWithLayers={groupsWithLayers}
+          basemapId={basemapId}
+          onBasemapChange={handleBasemapChange}
+          visibleLayers={visibleLayers}
+          layerOrder={layerOrder}
+          layersById={layersById}
+          layerOpacity={layerOpacity}
+          loadingLayers={loadingLayers}
+          layerErrors={layerErrors}
+          onToggleLayer={toggleLayer}
+          onLayerNameClick={onLayerNameClick}
+          onDownloadLayer={downloadLayer}
+          onBringToFront={bringLayerToFront}
+          onOpacityChange={setLayerOpacityValue}
           hiddenClasses={hiddenClasses}
           onToggleClass={toggleClass}
         />
-      )}
-    </div>
+
+        <GeoportalToolbar
+          getMap={getMap}
+          fullscreenTargetRef={rootRef}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          canCompare={canCompare}
+          compareMode={compareMode}
+          onEnterCompare={enterCompareMode}
+          onExitCompare={() => exitCompareMode(compareRef.current?.getCamera())}
+        />
+      </div>
+    </TooltipProvider>
   )
 }
 
 function defaultOpacity(style: LayerStyle) {
   return style.fillOpacity ?? style.strokeOpacity ?? style.circleOpacity ?? 1
+}
+
+async function fetchLayerGeojsonBlob(url: string) {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`)
+  }
+  return response.blob()
+}
+
+function geojsonFilename(title: string) {
+  const slug = title
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return `${slug || 'layer'}.geojson`
 }
 
 function initialHiddenClasses(groups: GroupWithLayers[]) {

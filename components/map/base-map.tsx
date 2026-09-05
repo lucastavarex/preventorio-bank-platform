@@ -2,6 +2,7 @@
 
 import 'maplibre-gl/dist/maplibre-gl.css'
 
+import type { StyleSpecification } from 'maplibre-gl'
 import * as maplibregl from 'maplibre-gl'
 import { setWorkerUrl } from 'maplibre-gl'
 import {
@@ -17,7 +18,6 @@ import MapGL, {
   type MapLayerMouseEvent,
   type MapRef,
 } from 'react-map-gl/maplibre'
-import type { StyleSpecification } from 'maplibre-gl'
 import { OSM_STYLE } from '@/components/map/basemap-styles'
 import { MapZoomControls } from '@/components/map/map-zoom-controls'
 
@@ -150,6 +150,7 @@ export const BaseMap = forwardRef<BaseMapHandle, BaseMapProps>(function BaseMap(
         interactive={interactive}
         onClick={onClick}
         interactiveLayerIds={interactiveLayerIds}
+        canvasContextAttributes={{ preserveDrawingBuffer: true }}
         onLoad={e => {
           e.target.resize()
           const saved = cameraRef.current
