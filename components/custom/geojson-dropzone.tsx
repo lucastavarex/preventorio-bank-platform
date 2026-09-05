@@ -81,7 +81,8 @@ export function GeojsonDropzone({
           }}
           onDragLeave={event => {
             event.preventDefault()
-            if (event.currentTarget.contains(event.relatedTarget as Node)) return
+            if (event.currentTarget.contains(event.relatedTarget as Node))
+              return
             setDragOver(false)
           }}
           onDrop={event => {

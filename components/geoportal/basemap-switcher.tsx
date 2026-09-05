@@ -1,6 +1,10 @@
 'use client'
 
 import { CheckIcon, MapIcon } from 'lucide-react'
+import {
+  BASEMAP_OPTIONS,
+  type BasemapId,
+} from '@/components/map/basemap-styles'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,10 +13,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  BASEMAP_OPTIONS,
-  type BasemapId,
-} from '@/components/map/basemap-styles'
 
 type BasemapSwitcherProps = {
   value: BasemapId
@@ -42,10 +42,7 @@ export function BasemapSwitcher({
       <DropdownMenuContent align="end" className="min-w-40">
         <DropdownMenuLabel>Mapa base</DropdownMenuLabel>
         {BASEMAP_OPTIONS.map(option => (
-          <DropdownMenuItem
-            key={option.id}
-            onClick={() => onChange(option.id)}
-          >
+          <DropdownMenuItem key={option.id} onClick={() => onChange(option.id)}>
             <span className="flex-1">{option.label}</span>
             {value === option.id && <CheckIcon className="size-4" />}
           </DropdownMenuItem>

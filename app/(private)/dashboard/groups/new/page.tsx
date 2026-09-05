@@ -1,6 +1,6 @@
+import { GroupForm } from '@/components/forms/group-form'
 import { createGroup } from '@/lib/actions/groups'
 import { requireAdmin } from '@/lib/roles.server'
-import { GroupForm } from '@/components/forms/group-form'
 
 export default async function NewGroupPage() {
   await requireAdmin()

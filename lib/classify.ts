@@ -283,9 +283,10 @@ export function equalIntervalClasses(
       min: roundBreak(classMin),
       max: roundBreak(classMax),
       color: colors[i],
-      label: DEFAULT_LABELS[i] && n === DEFAULT_LABELS.length
-        ? DEFAULT_LABELS[i]
-        : `${roundBreak(classMin)} – ${roundBreak(classMax)}`,
+      label:
+        DEFAULT_LABELS[i] && n === DEFAULT_LABELS.length
+          ? DEFAULT_LABELS[i]
+          : `${roundBreak(classMin)} – ${roundBreak(classMax)}`,
       visible: true,
     }
   })
@@ -333,7 +334,9 @@ export function classifyColorExpression(
 
   const expr: unknown[] = ['case']
   classify.classes.forEach((cls, i) => {
-    expr.push(classCondition(classify.property, cls, i === classify.classes.length - 1))
+    expr.push(
+      classCondition(classify.property, cls, i === classify.classes.length - 1)
+    )
     expr.push(cls.color)
   })
   expr.push(fallback)

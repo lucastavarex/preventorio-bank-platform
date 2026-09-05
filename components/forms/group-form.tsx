@@ -68,7 +68,11 @@ export function GroupForm({ action, defaultValues }: GroupFormProps) {
       </FieldGroup>
 
       <div className="flex justify-end pt-6">
-        <Button type="submit" size="lg" className="h-12 min-w-56 px-10 text-base">
+        <Button
+          type="submit"
+          size="lg"
+          className="h-12 min-w-56 px-10 text-base"
+        >
           Salvar
         </Button>
       </div>

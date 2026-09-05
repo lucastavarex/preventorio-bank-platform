@@ -234,7 +234,9 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
 
                 {classify && classify.classes.length > 0 && (
                   <div className="flex flex-col gap-2">
-                    <div className={`${CLASS_ROW_GRID} text-muted-foreground text-xs`}>
+                    <div
+                      className={`${CLASS_ROW_GRID} text-muted-foreground text-xs`}
+                    >
                       <span />
                       <span>Cor</span>
                       <span>Hex</span>
@@ -316,7 +318,12 @@ function formatClassNumber(value: number) {
 
 function parseClassNumber(raw: string) {
   const normalized = raw.trim().replace(',', '.')
-  if (!normalized || normalized === '-' || normalized === '.' || normalized === '-.') {
+  if (
+    !normalized ||
+    normalized === '-' ||
+    normalized === '.' ||
+    normalized === '-.'
+  ) {
     return null
   }
   const parsed = Number.parseFloat(normalized)

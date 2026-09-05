@@ -1,6 +1,6 @@
 'use client'
 
-import { ExternalLinkIcon, LinkIcon } from 'lucide-react'
+import { ExternalLinkIcon } from 'lucide-react'
 import {
   SidebarGroup,
   SidebarGroupLabel,

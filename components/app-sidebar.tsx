@@ -1,7 +1,7 @@
 'use client'
 
 import { useUser } from '@clerk/nextjs'
-import { BookOpenIcon, FolderIcon, LayersIcon, MapIcon } from 'lucide-react'
+import { BookOpenIcon, FolderIcon, MapIcon } from 'lucide-react'
 import type * as React from 'react'
 import { type NavItem, NavMain } from '@/components/nav-main'
 import { NavProjects } from '@/components/nav-projects'

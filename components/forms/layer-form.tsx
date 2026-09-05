@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { GeojsonDropzone } from '@/components/custom/geojson-dropzone'
 import { ClassifyEditor } from '@/components/forms/classify-editor'
 import { LayerPreview } from '@/components/forms/layer-preview'
@@ -35,7 +36,6 @@ import {
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from 'sonner'
 import { hasGraduatedClassify, legendFromClassify } from '@/lib/classify'
 import { computeBBox, parseFeatureCollection } from '@/lib/geojson'
 import type {

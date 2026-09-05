@@ -209,10 +209,7 @@ export function GeoportalSidebar({
               <LayersIcon />
             </RailButton>
             {legendLayers.length > 0 && (
-              <RailButton
-                title="Legenda"
-                onClick={() => openPanel('legend')}
-              >
+              <RailButton title="Legenda" onClick={() => openPanel('legend')}>
                 <ListIcon />
               </RailButton>
             )}

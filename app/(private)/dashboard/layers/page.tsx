@@ -15,10 +15,7 @@ export default async function LayersPage({
   await requireAdmin()
   const { group } = await searchParams
   const groupId = group && group.length > 0 ? group : undefined
-  const [layers, groups] = await Promise.all([
-    getLayers(groupId),
-    getGroups(),
-  ])
+  const [layers, groups] = await Promise.all([getLayers(groupId), getGroups()])
 
   return (
     <div className="space-y-6">
