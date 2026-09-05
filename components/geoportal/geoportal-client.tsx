@@ -1,5 +1,6 @@
 'use client'
 
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type MapLayerMouseEvent, Popup } from 'react-map-gl/maplibre'
 import { toast } from 'sonner'
@@ -22,15 +23,14 @@ import {
 } from '@/components/map/basemap-styles'
 import { GeoJSONLayer } from '@/components/map/geojson-layer'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { fetchGeojson } from '@/hooks/use-geojson'
+import { useGroupsWithLayers } from '@/hooks/use-layers'
 import { hasGraduatedClassify } from '@/lib/classify'
+import { queryKeys } from '@/lib/query/keys'
+import { getGeojsonStorageBaseUrl } from '@/lib/storage'
 import type { Group, Layer, LayerStyle } from '@/lib/supabase/types'
 
 type GroupWithLayers = Group & { layers: Layer[] }
-
-type Props = {
-  groupsWithLayers: GroupWithLayers[]
-  storageBaseUrl: string
-}
 
 type PopupInfo = {
   lng: number
@@ -40,12 +40,15 @@ type PopupInfo = {
 
 const BASEMAP_STORAGE_KEY = 'geoportal-basemap'
 
-export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
+export function GeoportalClient() {
+  const storageBaseUrl = getGeojsonStorageBaseUrl()
+  const queryClient = useQueryClient()
+  const groupsQuery = useGroupsWithLayers()
+  const groupsWithLayers = groupsQuery.data ?? []
+
   const rootRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<BaseMapHandle>(null)
   const compareRef = useRef<LayerCompareHandle>(null)
-  const layerDataRef = useRef<Record<string, GeoJSON.FeatureCollection>>({})
-  const loadingRef = useRef<Set<string>>(new Set())
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [basemapId, setBasemapId] = useState<BasemapId>(DEFAULT_BASEMAP_ID)
@@ -57,25 +60,41 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
   /** Bottom → top stack of visible layer ids. */
   const [layerOrder, setLayerOrder] = useState<string[]>([])
   const [layerOpacity, setLayerOpacity] = useState<Record<string, number>>({})
-  const [layerData, setLayerData] = useState<
-    Record<string, GeoJSON.FeatureCollection>
-  >({})
-  const [loadingLayers, setLoadingLayers] = useState<Set<string>>(
-    () => new Set()
-  )
-  const [layerErrors, setLayerErrors] = useState<Record<string, string>>({})
   const [popup, setPopup] = useState<PopupInfo | null>(null)
   const [hiddenClasses, setHiddenClasses] = useState<
     Record<string, Set<number>>
-  >(() => initialHiddenClasses(groupsWithLayers))
-
-  layerDataRef.current = layerData
+  >({})
 
   useEffect(() => {
     setBasemapId(
       parseBasemapId(window.localStorage.getItem(BASEMAP_STORAGE_KEY))
     )
   }, [])
+
+  useEffect(() => {
+    if (groupsQuery.isError) {
+      toast.error(
+        groupsQuery.error instanceof Error
+          ? groupsQuery.error.message
+          : 'Não foi possível carregar o geoportal.'
+      )
+    }
+  }, [groupsQuery.isError, groupsQuery.error])
+
+  useEffect(() => {
+    setHiddenClasses(prev => {
+      const defaults = initialHiddenClasses(groupsWithLayers)
+      let changed = false
+      const next = { ...prev }
+      for (const [id, hidden] of Object.entries(defaults)) {
+        if (!(id in next)) {
+          next[id] = hidden
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [groupsWithLayers])
 
   const handleBasemapChange = useCallback((id: BasemapId) => {
     const camera = mapRef.current?.getCamera()
@@ -92,52 +111,51 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
     return map
   }, [groupsWithLayers])
 
-  const loadLayer = useCallback(
-    (layer: Layer) => {
-      if (!layer.geojson_storage_path) return
-      if (layerDataRef.current[layer.id]) return
-      if (loadingRef.current.has(layer.id)) return
-
-      loadingRef.current.add(layer.id)
-      setLoadingLayers(prev => new Set(prev).add(layer.id))
-
-      fetch(`${storageBaseUrl}/${layer.geojson_storage_path}`)
-        .then(async response => {
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`)
-          }
-          return response.json() as Promise<GeoJSON.FeatureCollection>
-        })
-        .then(data => {
-          setLayerData(prev => {
-            const next = { ...prev, [layer.id]: data }
-            layerDataRef.current = next
-            return next
-          })
-          setLayerErrors(prev => {
-            if (!(layer.id in prev)) return prev
-            const next = { ...prev }
-            delete next[layer.id]
-            return next
-          })
-        })
-        .catch(() => {
-          setLayerErrors(prev => ({
-            ...prev,
-            [layer.id]: 'Falha ao carregar GeoJSON',
-          }))
-        })
-        .finally(() => {
-          loadingRef.current.delete(layer.id)
-          setLoadingLayers(prev => {
-            const next = new Set(prev)
-            next.delete(layer.id)
-            return next
-          })
-        })
-    },
-    [storageBaseUrl]
+  const visibleLayerList = useMemo(
+    () =>
+      layerOrder
+        .map(id => layersById.get(id))
+        .filter((layer): layer is Layer => Boolean(layer))
+        .filter(
+          layer => visibleLayers.has(layer.id) && layer.geojson_storage_path
+        ),
+    [layerOrder, layersById, visibleLayers]
   )
+
+  const geojsonQueries = useQueries({
+    queries: visibleLayerList.map(layer => ({
+      queryKey: queryKeys.geojson.byPath(layer.geojson_storage_path ?? ''),
+      queryFn: () => fetchGeojson(storageBaseUrl, layer.geojson_storage_path!),
+      staleTime: Number.POSITIVE_INFINITY,
+    })),
+  })
+
+  const layerData = useMemo(() => {
+    const data: Record<string, GeoJSON.FeatureCollection> = {}
+    visibleLayerList.forEach((layer, index) => {
+      const result = geojsonQueries[index]?.data
+      if (result) data[layer.id] = result
+    })
+    return data
+  }, [visibleLayerList, geojsonQueries])
+
+  const loadingLayers = useMemo(() => {
+    const loading = new Set<string>()
+    visibleLayerList.forEach((layer, index) => {
+      if (geojsonQueries[index]?.isPending) loading.add(layer.id)
+    })
+    return loading
+  }, [visibleLayerList, geojsonQueries])
+
+  const layerErrors = useMemo(() => {
+    const errors: Record<string, string> = {}
+    visibleLayerList.forEach((layer, index) => {
+      if (geojsonQueries[index]?.isError) {
+        errors[layer.id] = 'Falha ao carregar GeoJSON'
+      }
+    })
+    return errors
+  }, [visibleLayerList, geojsonQueries])
 
   const toggleClass = useCallback(
     (layerId: string, classIndex: number) => {
@@ -161,23 +179,19 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
   const visibleLayersRef = useRef(visibleLayers)
   visibleLayersRef.current = visibleLayers
 
-  const enableLayer = useCallback(
-    (layer: Layer) => {
-      if (visibleLayersRef.current.has(layer.id)) return
+  const enableLayer = useCallback((layer: Layer) => {
+    if (visibleLayersRef.current.has(layer.id)) return
 
-      setVisibleLayers(prev => new Set(prev).add(layer.id))
-      setLayerOrder(prev =>
-        prev.includes(layer.id) ? prev : [...prev, layer.id]
-      )
-      setLayerOpacity(prev =>
-        layer.id in prev
-          ? prev
-          : { ...prev, [layer.id]: defaultOpacity(layer.style) }
-      )
-      loadLayer(layer)
-    },
-    [loadLayer]
-  )
+    setVisibleLayers(prev => new Set(prev).add(layer.id))
+    setLayerOrder(prev =>
+      prev.includes(layer.id) ? prev : [...prev, layer.id]
+    )
+    setLayerOpacity(prev =>
+      layer.id in prev
+        ? prev
+        : { ...prev, [layer.id]: defaultOpacity(layer.style) }
+    )
+  }, [])
 
   const disableLayer = useCallback((layer: Layer) => {
     if (!visibleLayersRef.current.has(layer.id)) return
@@ -238,7 +252,9 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
       }
 
       try {
-        const cached = layerDataRef.current[layer.id]
+        const cached = queryClient.getQueryData<GeoJSON.FeatureCollection>(
+          queryKeys.geojson.byPath(layer.geojson_storage_path)
+        )
         const blob = cached
           ? new Blob([JSON.stringify(cached)], {
               type: 'application/geo+json',
@@ -259,7 +275,7 @@ export function GeoportalClient({ groupsWithLayers, storageBaseUrl }: Props) {
         toast.error('Falha ao baixar GeoJSON')
       }
     },
-    [storageBaseUrl]
+    [queryClient, storageBaseUrl]
   )
 
   const stackedVisibleLayers = useMemo(() => {

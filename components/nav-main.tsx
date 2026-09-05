@@ -1,6 +1,7 @@
 'use client'
 
 import { ChevronRightIcon } from 'lucide-react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Collapsible,
@@ -72,18 +73,26 @@ export function NavMain({ items }: { items: NavItem[] }) {
                         (pathname === subItem.url ||
                           pathname.startsWith(`${subItem.url}/`))
 
+                      const isExternal = /^https?:\/\//.test(subItem.url)
+
                       return (
                         <SidebarMenuSubItem key={subItem.title}>
                           <SidebarMenuSubButton asChild isActive={isSubActive}>
-                            <a
-                              href={subItem.url}
-                              {...(subItem.newTab && {
-                                target: '_blank',
-                                rel: 'noopener noreferrer',
-                              })}
-                            >
-                              <span>{subItem.title}</span>
-                            </a>
+                            {subItem.newTab || isExternal ? (
+                              <a
+                                href={subItem.url}
+                                {...(subItem.newTab && {
+                                  target: '_blank',
+                                  rel: 'noopener noreferrer',
+                                })}
+                              >
+                                <span>{subItem.title}</span>
+                              </a>
+                            ) : (
+                              <Link href={subItem.url}>
+                                <span>{subItem.title}</span>
+                              </Link>
+                            )}
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )

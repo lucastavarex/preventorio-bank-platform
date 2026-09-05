@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Fragment } from 'react'
 import {
@@ -40,7 +41,9 @@ export function DashboardBreadcrumb() {
                 {isLast || nonClickable.has(segment) ? (
                   <BreadcrumbPage>{label}</BreadcrumbPage>
                 ) : (
-                  <BreadcrumbLink href={href}>{label}</BreadcrumbLink>
+                  <BreadcrumbLink asChild>
+                    <Link href={href}>{label}</Link>
+                  </BreadcrumbLink>
                 )}
               </BreadcrumbItem>
               {!isLast && <BreadcrumbSeparator />}

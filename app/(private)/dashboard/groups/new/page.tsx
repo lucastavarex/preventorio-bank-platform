@@ -1,5 +1,4 @@
 import { GroupForm } from '@/components/forms/group-form'
-import { createGroup } from '@/lib/actions/groups'
 import { requireAdmin } from '@/lib/roles.server'
 
 export default async function NewGroupPage() {
@@ -13,7 +12,7 @@ export default async function NewGroupPage() {
           Crie um grupo para organizar layers relacionados.
         </p>
       </div>
-      <GroupForm action={createGroup} />
+      <GroupForm />
     </div>
   )
 }

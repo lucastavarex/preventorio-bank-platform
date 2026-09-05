@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { ConfirmDeleteButton } from '@/components/custom/confirm-delete-button'
 import { Button } from '@/components/ui/button'
@@ -8,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { deleteLayer } from '@/lib/actions/layers'
+import { useDeleteLayer } from '@/hooks/use-layers'
 import type { LayerWithGroup } from '@/lib/supabase/types'
 
 type LayerCardsProps = {
@@ -24,6 +26,8 @@ export function LayerCards({
   emptyTitle = 'Nenhum layer',
   emptyDescription = 'Crie o primeiro layer fazendo upload de um arquivo GeoJSON.',
 }: LayerCardsProps) {
+  const deleteLayer = useDeleteLayer()
+
   if (layers.length === 0) {
     return (
       <Card>
@@ -66,7 +70,12 @@ export function LayerCards({
               <Link href={`/dashboard/layers/${layer.id}`}>Editar</Link>
             </Button>
             <ConfirmDeleteButton
-              action={deleteLayer.bind(null, layer.id)}
+              action={() =>
+                deleteLayer.mutateAsync({
+                  id: layer.id,
+                  geojsonPath: layer.geojson_storage_path,
+                })
+              }
               message={`Excluir o layer "${layer.title}"?`}
             />
           </CardFooter>

@@ -36,8 +36,11 @@ import {
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { useGeojson } from '@/hooks/use-geojson'
+import { useCreateLayer, useUpdateLayer } from '@/hooks/use-layers'
 import { hasGraduatedClassify, legendFromClassify } from '@/lib/classify'
 import { computeBBox, parseFeatureCollection } from '@/lib/geojson'
+import { isNextRedirect } from '@/lib/next-redirect'
 import type {
   Group,
   Layer,
@@ -46,7 +49,6 @@ import type {
 } from '@/lib/supabase/types'
 
 type LayerFormProps = {
-  action: (formData: FormData) => Promise<void>
   groups: Group[]
   defaultValues?: Partial<Layer>
   storageBaseUrl?: string
@@ -54,7 +56,6 @@ type LayerFormProps = {
 }
 
 export function LayerForm({
-  action,
   groups,
   defaultValues,
   storageBaseUrl,
@@ -71,37 +72,27 @@ export function LayerForm({
   const [groupId, setGroupId] = useState(defaultValues?.group_id ?? '')
   const [isPrivate, setIsPrivate] = useState(defaultValues?.is_private ?? false)
   const [fileError, setFileError] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
   const [confirmPublicOpen, setConfirmPublicOpen] = useState(false)
   const pendingFormDataRef = useRef<FormData | null>(null)
+  const createLayer = useCreateLayer()
+  const updateLayer = useUpdateLayer(defaultValues?.id ?? '')
+  const mutation = defaultValues?.id ? updateLayer : createLayer
+  const geojsonQuery = useGeojson(
+    defaultValues?.geojson_storage_path ?? undefined,
+    storageBaseUrl
+  )
 
   useEffect(() => {
-    if (!defaultValues?.geojson_storage_path || !storageBaseUrl) return
-    let cancelled = false
+    if (!geojsonQuery.data || selectedFile) return
+    setSavedPreview(geojsonQuery.data)
+    setPreview(geojsonQuery.data)
+    setFileError(null)
+  }, [geojsonQuery.data, selectedFile])
 
-    fetch(`${storageBaseUrl}/${defaultValues.geojson_storage_path}`)
-      .then(async response => {
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
-        }
-        return response.text()
-      })
-      .then(text => {
-        if (cancelled) return
-        const geojson = parseFeatureCollection(text)
-        setSavedPreview(geojson)
-        setPreview(geojson)
-        setFileError(null)
-      })
-      .catch(() => {
-        if (cancelled) return
-        setFileError('Não foi possível carregar o GeoJSON salvo.')
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [defaultValues?.geojson_storage_path, storageBaseUrl])
+  useEffect(() => {
+    if (!geojsonQuery.isError) return
+    setFileError('Não foi possível carregar o GeoJSON salvo.')
+  }, [geojsonQuery.isError])
 
   const applyFile = useCallback(
     (file: File) => {
@@ -165,9 +156,8 @@ export function LayerForm({
 
   const save = useCallback(
     async (formData: FormData) => {
-      setPending(true)
       try {
-        await action(formData)
+        await mutation.mutateAsync(formData)
       } catch (error) {
         if (isNextRedirect(error)) throw error
         toast.error(
@@ -175,16 +165,15 @@ export function LayerForm({
             ? error.message
             : 'Não foi possível salvar o layer.'
         )
-        setPending(false)
       }
     },
-    [action]
+    [mutation]
   )
 
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      if (pending) return
+      if (mutation.isPending) return
 
       const formData = buildFormData(event.currentTarget)
 
@@ -196,7 +185,7 @@ export function LayerForm({
 
       void save(formData)
     },
-    [pending, buildFormData, isPrivate, save]
+    [mutation.isPending, buildFormData, isPrivate, save]
   )
 
   const handleConfirmPublic = useCallback(() => {
@@ -318,14 +307,14 @@ export function LayerForm({
             size="lg"
             className="h-12 min-w-56 px-10 text-base"
             disabled={
-              pending ||
+              mutation.isPending ||
               groups.length === 0 ||
               !groupId ||
               (geojsonRequired && !hasExistingFile && !selectedFile)
             }
           >
-            {pending ? <Spinner data-icon="inline-start" /> : null}
-            {pending ? 'Salvando…' : 'Salvar'}
+            {mutation.isPending ? <Spinner data-icon="inline-start" /> : null}
+            {mutation.isPending ? 'Salvando…' : 'Salvar'}
           </Button>
         </div>
       </form>
@@ -354,15 +343,5 @@ export function LayerForm({
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
-}
-
-function isNextRedirect(error: unknown) {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'digest' in error &&
-    typeof (error as { digest: unknown }).digest === 'string' &&
-    (error as { digest: string }).digest.startsWith('NEXT_REDIRECT')
   )
 }
