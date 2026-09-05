@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { computeBBox, parseFeatureCollection } from '@/lib/geojson'
-import { getRole, requireAdmin } from '@/lib/roles.server'
+import { canReadPrivate, requireAdmin } from '@/lib/roles.server'
 import {
   createAnonServerClient,
   createServerClient,
@@ -66,8 +66,7 @@ export async function getLayer(id: string): Promise<LayerWithGroup> {
 }
 
 export async function getGroupsWithLayers() {
-  const role = await getRole()
-  const canReadPrivate = role === 'admin' || role === 'reader'
+  const privileged = await canReadPrivate()
 
   const query = (
     client:
@@ -79,10 +78,11 @@ export async function getGroupsWithLayers() {
       ascending: true,
     })
 
-  // App roles come from Clerk (getRole). Session JWT often lacks user_role for
-  // Supabase RLS, so privileged readers bypass RLS via service client.
+  // Org roles come from Clerk (canReadPrivate). Session JWT often lacks
+  // user_role for Supabase RLS, so privileged members bypass RLS via service
+  // client.
   let result
-  if (canReadPrivate) {
+  if (privileged) {
     result = await query(createServiceClient())
   } else {
     const authenticated = await query(createServerClient())

@@ -1,6 +1,6 @@
 'use client'
 
-import { useSignUp } from '@clerk/nextjs'
+import { useClerk, useSignUp } from '@clerk/nextjs'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { FormEvent } from 'react'
@@ -17,9 +17,11 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { clerkErrorMessage } from '@/lib/clerk-errors'
 import { navigateAfterAuth } from '@/lib/clerk-navigation'
+import { activateSingleOrganization } from '@/lib/clerk-organization'
 
 export function SignUpForm() {
   const { signUp, errors, fetchStatus } = useSignUp()
+  const clerk = useClerk()
   const router = useRouter()
   const searchParams = useSearchParams()
   const ticket = searchParams.get('__clerk_ticket')
@@ -62,11 +64,19 @@ export function SignUpForm() {
 
     if (signUp.status === 'complete') {
       await signUp.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) {
+        navigate: async ({ session, decorateUrl }) => {
+          if (
+            session?.currentTask &&
+            session.currentTask.key !== 'choose-organization'
+          ) {
             return
           }
 
+          await activateSingleOrganization({
+            user: clerk.user,
+            session,
+            setActive: clerk.setActive,
+          })
           navigateAfterAuth(decorateUrl, router)
         },
       })

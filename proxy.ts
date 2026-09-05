@@ -23,6 +23,10 @@ function isPublicPath(pathname: string) {
 }
 
 function isAuthRedirectPath(pathname: string) {
+  if (pathname === '/sign-in/tasks' || pathname.startsWith('/sign-in/tasks/')) {
+    return false
+  }
+
   return AUTH_REDIRECT_ROUTES.some(route => matchesRoute(pathname, route))
 }
 

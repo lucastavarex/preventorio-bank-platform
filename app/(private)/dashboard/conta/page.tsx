@@ -1,4 +1,4 @@
-import { currentUser } from '@clerk/nextjs/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { InfoIcon } from 'lucide-react'
 import Image from 'next/image'
 import { redirect } from 'next/navigation'
@@ -12,7 +12,7 @@ import { DEFAULT_ROLE, parseRole, type Role } from '@/lib/roles'
 
 const ROLE_LABELS: Record<Role, string> = {
   admin: 'Administrador',
-  reader: 'Leitor',
+  member: 'Membro',
 }
 
 function getInitials(name: string, email: string) {
@@ -36,9 +36,10 @@ export default async function ContaPage() {
     redirect('/sign-in')
   }
 
+  const { orgRole } = await auth()
   const name = user.fullName || user.firstName || 'Usuário'
   const email = user.primaryEmailAddress?.emailAddress ?? ''
-  const role = parseRole(user.publicMetadata.role) ?? DEFAULT_ROLE
+  const role = parseRole(orgRole) ?? DEFAULT_ROLE
 
   return (
     <div className="space-y-8">
@@ -80,13 +81,13 @@ export default async function ContaPage() {
             <Tooltip>
               <TooltipTrigger
                 type="button"
-                aria-label="Sobre os papéis de administrador e leitor"
+                aria-label="Sobre os papéis de administrador e membro"
                 className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <InfoIcon className="size-3.5" />
               </TooltipTrigger>
               <TooltipContent>
-                Apenas administradores podem editar as camadas. Leitores podem
+                Apenas administradores podem editar as camadas. Membros podem
                 apenas visualizá-las.
               </TooltipContent>
             </Tooltip>

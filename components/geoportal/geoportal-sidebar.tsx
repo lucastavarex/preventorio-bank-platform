@@ -1,6 +1,6 @@
 'use client'
 
-import { useUser } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 import {
   BringToFrontIcon,
   Building2Icon,
@@ -23,14 +23,12 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { BasemapToggle } from '@/components/geoportal/basemap-toggle'
 import {
   filterLayersWithLegend,
   GeoportalLegendBody,
 } from '@/components/geoportal/geoportal-legend'
-import {
-  BASEMAP_OPTIONS,
-  type BasemapId,
-} from '@/components/map/basemap-styles'
+import type { BasemapId } from '@/components/map/basemap-styles'
 import { NavUser } from '@/components/nav-user'
 import {
   Accordion,
@@ -52,21 +50,15 @@ import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { isAdminRole, parseRole } from '@/lib/roles'
+import { CLERK_ORG_ROLES } from '@/lib/roles'
 import type { Group, Layer, LayerStyle } from '@/lib/supabase/types'
 
 type GroupWithLayers = Group & { layers: Layer[] }
-
-const BASEMAP_LABELS: Record<BasemapId, string> = {
-  streets: 'OpenStreetMap',
-  satellite: 'Satélite',
-}
 
 const accordionTriggerClassName =
   'min-h-11 items-center py-3 hover:no-underline'
@@ -114,7 +106,9 @@ export function GeoportalSidebar({
 }: GeoportalSidebarProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { user, isLoaded } = useUser()
-  const isAdmin = isAdminRole(parseRole(user?.publicMetadata.role))
+  const { has, isLoaded: authLoaded } = useAuth()
+  const isAdmin =
+    authLoaded && (has?.({ role: CLERK_ORG_ROLES.admin }) ?? false)
   const [query, setQuery] = useState('')
   const [accordionValue, setAccordionValue] = useState<string[]>([])
   const [infoOpen, setInfoOpen] = useState(false)
@@ -294,27 +288,7 @@ export function GeoportalSidebar({
         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
           <section className="flex flex-col gap-2">
             <h3 className="font-medium text-sm">Mapa Base</h3>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              spacing={0}
-              value={basemapId}
-              onValueChange={value => {
-                if (isBasemapId(value)) onBasemapChange(value)
-              }}
-              className="w-full"
-            >
-              {BASEMAP_OPTIONS.map(option => (
-                <ToggleGroupItem
-                  key={option.id}
-                  value={option.id}
-                  className="min-w-0 flex-1 px-2"
-                >
-                  <span className="truncate">{BASEMAP_LABELS[option.id]}</span>
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+            <BasemapToggle value={basemapId} onChange={onBasemapChange} />
           </section>
 
           <Separator />
@@ -687,8 +661,4 @@ function getGroupIcon(title: string) {
 
 function defaultOpacity(style: LayerStyle) {
   return style.fillOpacity ?? style.strokeOpacity ?? style.circleOpacity ?? 1
-}
-
-function isBasemapId(value: string): value is BasemapId {
-  return value === 'streets' || value === 'satellite'
 }

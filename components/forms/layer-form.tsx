@@ -281,7 +281,7 @@ export function LayerForm({
                 onCheckedChange={checked => setIsPrivate(checked === true)}
               />
               <FieldLabel htmlFor="is_private">
-                Privado (visível apenas para leitores e admins)
+                Privado (visível apenas para membros e admins)
               </FieldLabel>
             </Field>
           </FieldGroup>

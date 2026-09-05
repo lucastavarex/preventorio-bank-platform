@@ -1,6 +1,6 @@
 'use client'
 
-import { useSignIn } from '@clerk/nextjs'
+import { useClerk, useSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { AuthPageShell } from '@/components/auth-page-shell'
@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { clerkErrorMessage } from '@/lib/clerk-errors'
 import { navigateAfterAuth } from '@/lib/clerk-navigation'
+import { activateSingleOrganization } from '@/lib/clerk-organization'
 
 export function SignInForm({
   mode = 'sign-in',
@@ -28,6 +29,7 @@ export function SignInForm({
   onBack?: () => void
 }) {
   const { signIn, errors, fetchStatus } = useSignIn()
+  const clerk = useClerk()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -67,11 +69,19 @@ export function SignInForm({
 
   async function finalizeSignIn() {
     await signIn.finalize({
-      navigate: ({ session, decorateUrl }) => {
-        if (session?.currentTask) {
+      navigate: async ({ session, decorateUrl }) => {
+        if (
+          session?.currentTask &&
+          session.currentTask.key !== 'choose-organization'
+        ) {
           return
         }
 
+        await activateSingleOrganization({
+          user: clerk.user,
+          session,
+          setActive: clerk.setActive,
+        })
         navigateAfterAuth(decorateUrl, router)
       },
     })

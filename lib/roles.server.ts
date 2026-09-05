@@ -1,28 +1,25 @@
-import { auth, currentUser } from '@clerk/nextjs/server'
+import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import {
-  getRoleFromClaims,
-  isAdminRole,
+  CLERK_ORG_ROLES,
+  canReadPrivateRole,
   parseRole,
   type Role,
 } from '@/lib/roles'
 
 export async function getRole(): Promise<Role | undefined> {
-  const { sessionClaims } = await auth()
-  const fromClaims = getRoleFromClaims(sessionClaims)
+  const { orgRole } = await auth()
+  return parseRole(orgRole)
+}
 
-  if (fromClaims) {
-    return fromClaims
-  }
-
-  const user = await currentUser()
-  return parseRole(user?.publicMetadata?.role)
+export async function canReadPrivate(): Promise<boolean> {
+  return canReadPrivateRole(await getRole())
 }
 
 export async function requireAdmin() {
-  const role = await getRole()
+  const { has } = await auth()
 
-  if (!isAdminRole(role)) {
+  if (!has({ role: CLERK_ORG_ROLES.admin })) {
     redirect('/dashboard')
   }
 }

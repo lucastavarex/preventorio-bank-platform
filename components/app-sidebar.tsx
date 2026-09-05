@@ -1,6 +1,6 @@
 'use client'
 
-import { useUser } from '@clerk/nextjs'
+import { useAuth } from '@clerk/nextjs'
 import { BookOpenIcon, FolderIcon, MapIcon } from 'lucide-react'
 import type * as React from 'react'
 import { type NavItem, NavMain } from '@/components/nav-main'
@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { isAdminRole, parseRole } from '@/lib/roles'
+import { CLERK_ORG_ROLES } from '@/lib/roles'
 
 const data: {
   navMain: NavItem[]
@@ -97,8 +97,8 @@ const data: {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user } = useUser()
-  const isAdmin = isAdminRole(parseRole(user?.publicMetadata.role))
+  const { has, isLoaded } = useAuth()
+  const isAdmin = isLoaded && (has?.({ role: CLERK_ORG_ROLES.admin }) ?? false)
 
   const navMain = data.navMain
     .filter(item => !item.adminOnly || isAdmin)

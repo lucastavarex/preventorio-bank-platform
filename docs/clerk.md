@@ -8,7 +8,7 @@ Documentação única da autenticação do portal interno **Banco do Preventóri
 
 ## 1. Contexto
 
-O portal é interno (~50 pessoas), **somente por convite**, com dois papéis: `admin` e `reader`. Não há cadastro público, OAuth social nem Organizations do Clerk.
+O portal é interno (~50 pessoas), **somente por convite**, com dois papéis de Organizations: `org:admin` e `org:member`. Há uma única organização (“Banco do preventório”). Não há cadastro público nem OAuth social. Visitantes sem sessão veem só grupos e layers públicos.
 
 O Clerk é o IdP e o store de usuários. A aplicação **não** persiste usuários, sessões ou senhas no próprio banco. Firebase (se entrar depois) fica para dados do geoportal, não para login.
 
@@ -19,7 +19,7 @@ Instância em uso: app Clerk **Preventório - Geoportal**.
 | Requisito | Clerk | Firebase Auth |
 |-----------|-------|----------------|
 | Convite apenas | Modo nativo no Dashboard | Admin SDK + trava extra no cadastro |
-| Papéis `admin` / `reader` | `publicMetadata` + JWT | Custom claims + Cloud Functions |
+| Papéis `org:admin` / `org:member` | Organizations + `has({ role })` | Custom claims + Cloud Functions |
 | Next.js 16 App Router | `clerkMiddleware` em `proxy.ts`, `auth()` nos Server Components | Integração menos direta |
 | UI própria (shadcn) | Custom flows (`useSignIn` / `useSignUp`) | Também possível, mas convite/papéis exigem mais código |
 
@@ -31,7 +31,7 @@ Instância em uso: app Clerk **Preventório - Geoportal**.
 
 2. **Protected-first.** Tudo que não está na lista pública exige sessão. O proxy é a primeira linha; o layout do dashboard reforça.
 
-3. **Papel no `publicMetadata`, não em Organizations.** Um único “tenant”. O cliente pode *ler* o papel (sidebar); só o Backend/Dashboard pode *escrever*. Autorização de verdade acontece no servidor.
+3. **Papel na Organization, não em `publicMetadata`.** Um único tenant (“Banco do preventório”). O cliente lê `orgRole` / `has({ role: 'org:admin' })` para UX; autorização de verdade acontece no servidor com `requireAdmin()` / `canReadPrivate()`. Sem `<OrganizationSwitcher />` e sem rotas `/orgs/[slug]`.
 
 4. **Future API do SDK (Core 3).** `useSignIn()` / `useSignUp()` no formato atual (`password()`, `finalize()`, `resetPasswordEmailCode`, `errors`, `fetchStatus`). Não usar o padrão legado `isLoaded` + `setActive({ session })` + `prepareFirstFactor`.
 
@@ -44,8 +44,9 @@ Instância em uso: app Clerk **Preventório - Geoportal**.
 | Arquivo | Função |
 |---------|--------|
 | `proxy.ts` | `clerkMiddleware`: rotas públicas, redirect de quem já está logado, `auth.protect()` no resto |
-| `app/layout.tsx` | `<ClerkProvider>` em volta da árvore, `lang="pt-BR"` |
+| `app/layout.tsx` | `<ClerkProvider>` + `<ActivateOrganization />`, `lang="pt-BR"` |
 | `app/(public)/sign-in/page.tsx` | Login |
+| `app/(public)/sign-in/tasks/page.tsx` | Session task: ativa a org única e segue ao dashboard |
 | `app/(public)/forgot-password/page.tsx` | Redefinição de senha (`SignInForm mode="forgot"`) |
 | `app/(public)/sign-up/page.tsx` | Aceite de convite (`__clerk_ticket`) |
 | `app/(private)/dashboard/layout.tsx` | `await auth.protect()` + shell logado |
@@ -55,12 +56,14 @@ Instância em uso: app Clerk **Preventório - Geoportal**.
 | `components/auth-page-shell.tsx` | Layout visual das telas de auth |
 | `components/public-auth-controls.tsx` | Home: Entrar / Painel via `<Show>` |
 | `components/nav-user.tsx` | Nome, e-mail, avatar, `signOut` |
-| `components/app-sidebar.tsx` | Esconde “Gerenciar usuários” se não for admin |
-| `lib/roles.ts` | Tipos e parsers **seguros para o client** |
-| `lib/roles.server.ts` | `getRole()` / `requireAdmin()` — **somente servidor** |
+| `components/app-sidebar.tsx` | Esconde Gestão se não for `org:admin` |
+| `components/activate-organization.tsx` | `setActive` na única org se a sessão não tiver `orgId` |
+| `lib/roles.ts` | Tipos e parsers **seguros para o client** (`admin` / `member`) |
+| `lib/roles.server.ts` | `getRole()` / `canReadPrivate()` / `requireAdmin()` — **somente servidor** |
+| `lib/clerk-organization.ts` | Escolhe a org e chama `setActive` |
 | `lib/clerk-navigation.ts` | Redirect pós-auth (`decorateUrl` + `router.push`) |
 | `lib/clerk-errors.ts` | Códigos Clerk → mensagens em português |
-| `types/globals.d.ts` | `CustomJwtSessionClaims` e `UserPublicMetadata` |
+| `types/globals.d.ts` | Claim `user_role` do JWT (`org:admin` / `org:member`) |
 | `.env.example` | Nomes das variáveis (sem segredos) |
 
 Grupos de rotas `(public)` e `(private)` **não** aparecem na URL. Isolar código de servidor (`@clerk/nextjs/server`) de código de client (`@clerk/nextjs`) é obrigatório: importar `auth` / `currentUser` em `lib/roles.ts` quebra o bundle da sidebar.
@@ -81,6 +84,7 @@ Definidas em `.env.local` (gitignored). Modelo em `.env.example`:
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/sign-up` | Destino dos convites (query `__clerk_ticket`) |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/dashboard` | Fallback pós-login |
 | `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/dashboard` | Fallback pós-aceite do convite |
+| `NEXT_PUBLIC_CLERK_ORGANIZATION_ID` | Client + server | Opcional. Trava o `setActive` no id da org “Banco do preventório” (`org_…`) |
 
 Nunca colocar `CLERK_SECRET_KEY` em código client, `NEXT_PUBLIC_*` extra, ou commits. `.gitignore` cobre `.env*` com exceção de `.env.example`. A pasta `.clerk/` também é ignorada.
 
@@ -93,19 +97,11 @@ Estas opções **não estão no código**. Se o Dashboard estiver errado, o app 
 1. **Access mode → Invite-only.** É o controle real contra cadastro aberto. A UI recusa `/sign-up` sem ticket, mas a Frontend API do Clerk ainda obedeceria ao modo da instância.
 2. **Estratégia de login: e-mail + senha.** As telas não implementam OAuth/Apple/Google/Meta.
 3. **URLs da aplicação** apontando para este app (`/sign-in`, `/sign-up`, redirect `/dashboard`).
-4. **Primeiro usuário** com `publicMetadata.role = "admin"` (JSON no perfil do usuário).
-5. **(Recomendado)** JWT template da sessão com claim extra:
-
-   ```json
-   {
-     "metadata": "{{user.public_metadata}}"
-   }
-   ```
-
-   Sem isso, `getRole()` cai no fallback `currentUser()` (chamada à Backend API). Com o claim, o papel vem no JWT já verificado pelo middleware.
-
-6. **Convites** devem usar a URL de sign-up desta aplicação, para o ticket cair em `/sign-up?__clerk_ticket=…`.
-7. **Integração Clerk + Supabase** (obrigatória para layers privados). Ver seção 4.4.
+4. **Organizations habilitadas**, membership **optional**, criação de organizações por usuários **desligada**. Org única: **Banco do preventório**, roles `org:admin` e `org:member`.
+5. **Primeiro administrador** como membro `org:admin` dessa org (Dashboard → Organizations → Members), não via `publicMetadata`.
+6. **Session token** com `user_role` vindo da org ativa (seção 4.4). Sem org ativa, `orgRole` fica vazio e o app trata como visitante (só conteúdo público).
+7. **Convites** pela org (Members → Invite), com a URL de sign-up desta aplicação, para o ticket cair em `/sign-up?__clerk_ticket=…`.
+8. **Integração Clerk + Supabase** (obrigatória para layers privados). Ver seção 4.4.
 
 Checklist operacional: `npx clerk@latest doctor` no projeto.
 
@@ -123,7 +119,7 @@ Não use JWT template nem custom signing key. O template antigo do Clerk para Su
   "aud": "authenticated",
   "role": "authenticated",
   "email": "{{user.primary_email_address}}",
-  "user_role": "{{user.public_metadata.role}}"
+  "user_role": "{{org.role}}"
 }
 ```
 
@@ -134,7 +130,7 @@ Não use JWT template nem custom signing key. O template antigo do Clerk para Su
 1. Authentication → Sign In / Providers → Add provider → Clerk
 2. Cole o Clerk domain
 
-`role` precisa ser `"authenticated"` (papel do Postgres). O papel do app (`admin` / `reader`) vai em `user_role`, lido por `public.requesting_role()`.
+`role` precisa ser `"authenticated"` (papel do Postgres). O papel do app (`org:admin` / `org:member`) vai em `user_role`, lido por `public.requesting_role()`. Sem org ativa, `{{org.role}}` fica vazio e o RLS trata como público. Policies atuais ainda aceitam os valores legados `admin` / `reader` até os JWTs antigos expirarem.
 
 ### 4.3 O que o `clerk init` não deve fazer
 
@@ -180,7 +176,7 @@ Há **segunda linha** no layout do dashboard: `await auth.protect()`. Quem chega
 
 ### 5.2 O que o proxy *não* faz
 
-O proxy **não** verifica papel. Um `reader` autenticado acessa `/dashboard` e `/dashboard/geoportal/gerenciar-mapas`. Só `/dashboard/geoportal/gerenciar-usuarios` chama `requireAdmin()`.
+O proxy **não** verifica papel. Um `org:member` autenticado acessa `/dashboard` e `/dashboard/geoportal/gerenciar-mapas`. Só `/dashboard/geoportal/gerenciar-usuarios` (e as rotas de CRUD) chamam `requireAdmin()`.
 
 Novas rotas de admin precisam de `requireAdmin()` (ou equivalente) **na página/ação**, não só de esconder o link na sidebar.
 
@@ -193,18 +189,18 @@ Não existem Route Handlers (`app/api`) ainda. Quando existirem, o matcher já o
 ### 6.1 Modelo
 
 ```ts
-type Role = 'admin' | 'reader'
+type Role = 'admin' | 'member'
 ```
 
-Fonte da verdade: `user.publicMetadata.role` no Clerk.
+Fonte da verdade: role da organização ativa no Clerk (`org:admin` / `org:member`).
 
-- **Leitura no client:** `user.publicMetadata.role` via `useUser()` — só para UX (esconder menu).
-- **Leitura no servidor:** JWT (`sessionClaims.metadata.role`) e, se ausente, `currentUser().publicMetadata.role`.
-- **Escrita:** Dashboard ou Backend API (`clerkClient`). O browser **não** consegue alterar `publicMetadata`.
+- **Leitura no client:** `useAuth().has({ role: 'org:admin' })` — só para UX (esconder menu / lápis de editar).
+- **Leitura no servidor:** `auth().orgRole` via `getRole()`; `requireAdmin()` usa `has({ role: 'org:admin' })`.
+- **Escrita:** Dashboard → Organizations → Members (ou Backend API). O browser **não** consegue alterar a role.
 
-`parseRole()` ignora qualquer valor que não seja `admin` | `reader`. Papel inválido ou ausente **não** vira admin (`isAdminRole` é fail-closed).
+`parseRole()` aceita `org:admin` → `admin`, `org:member` → `member`, e o valor legado `reader` → `member`. Papel inválido ou ausente **não** vira admin (`requireAdmin` é fail-closed).
 
-`DEFAULT_ROLE` (`reader`) existe em `lib/roles.ts` mas **não é aplicado automaticamente**. Usuário sem metadata entra no dashboard como não-admin. Convites devem definir `role` no metadata (no convite ou depois, no usuário).
+`DEFAULT_ROLE` (`member`) existe em `lib/roles.ts` só para exibição na página Conta. Usuário autenticado sem membership (ou sem org ativa) não lê conteúdo privado.
 
 ### 6.2 Onde o papel é aplicado
 
@@ -219,7 +215,7 @@ Esconder o link **não** é autorização. A URL direta é o teste: `requireAdmi
 
 ### 6.3 Tipos TypeScript
 
-`types/globals.d.ts` estende as interfaces globais do Clerk (`CustomJwtSessionClaims`, `UserPublicMetadata`). Assim `auth().sessionClaims` e `user.publicMetadata.role` são tipados. Manter este arquivo alinhado se o conjunto de papéis crescer.
+`types/globals.d.ts` tipa o claim `user_role` do JWT (`org:admin` | `org:member`) usado pelo Supabase. A role da sessão no app vem de `auth().orgRole`, não de `publicMetadata`.
 
 ---
 
@@ -230,7 +226,7 @@ Todas as telas de auth compartilham `AuthPageShell` (card em duas colunas no des
 ### 7.1 Login (`/sign-in`)
 
 1. `signIn.password({ emailAddress, password })`.
-2. Se `status === 'complete'` → `signIn.finalize({ navigate })` → `/dashboard` via `navigateAfterAuth`.
+2. Se `status === 'complete'` → `signIn.finalize({ navigate })` → `setActive` na org → `/dashboard` via `navigateAfterAuth`.
 3. Se `needs_client_trust` ou `needs_second_factor` → envia código por e-mail (`signIn.mfa.sendEmailCode`) e pede o código (`verifyEmailCode`).
 4. Link **Esqueci minha senha** → `/forgot-password` (navegação completa, não estado interno do form).
 
@@ -256,10 +252,10 @@ Sem `?__clerk_ticket=` a página **não** mostra formulário de cadastro: mensag
 Com ticket:
 
 1. `signUp.create({ strategy: 'ticket', ticket, firstName, lastName, password })`
-2. Se `complete` → `signUp.finalize({ navigate })` → `/dashboard`
+2. Se `complete` → `signUp.finalize({ navigate })` → ativa a org (`setActive`) → `/dashboard`
 3. Mount point `#clerk-captcha` (bot de sign-up)
 
-O e-mail do convite é o da instância Clerk. A aplicação não envia o convite hoje (ver gaps).
+O e-mail do convite é o da instância Clerk. Convites devem sair de **Organizations → Members → Invite** (com role), não de Users → Invite. A aplicação não envia o convite hoje (ver gaps).
 
 ### 7.4 Sessão no app logado
 
@@ -269,7 +265,9 @@ O e-mail do convite é o da instância Clerk. A aplicação não envia o convite
 
 ### 7.5 Navegação pós-auth
 
-`navigateAfterAuth` usa `decorateUrl` do Clerk (session tasks / handshake). URL absoluta → `window.location`; relativa → `router.push`. Se `session.currentTask` existir, o `finalize` não navega (o Clerk ainda tem um passo pendente).
+`navigateAfterAuth` usa `decorateUrl` do Clerk (session tasks / handshake). URL absoluta → `window.location`; relativa → `router.push`. Tasks que não são `choose-organization` (MFA, reset de senha) ainda interrompem a navegação.
+
+Depois do `finalize`, `activateSingleOrganization` chama `clerk.setActive({ organization })` mesmo quando a task é `choose-organization`, para member e admin irem direto ao dashboard. `<ActivateOrganization />` no root layout e `/sign-in/tasks` fazem o mesmo se o Clerk ainda mandar para a tela de escolher org. O picker (`<TaskChooseOrganization />`) só aparece se a pessoa não tiver membership. Sem `<OrganizationSwitcher />`.
 
 ---
 
@@ -294,17 +292,17 @@ O e-mail do convite é o da instância Clerk. A aplicação não envia o convite
 | `auth.protect()` no layout do dashboard | Sim (defesa em profundidade) |
 | Sign-up sem ticket recusado na UI | Sim |
 | Invite-only no Dashboard | **Operacional** — não versionado |
-| Papel não gravável pelo client | Sim (`publicMetadata`) |
-| Autorização admin no servidor | Sim, **só** em gerenciar-usuarios |
+| Papel não gravável pelo client | Sim (role da org) |
+| Autorização admin no servidor | Sim (`requireAdmin` nas pages/actions de CRUD) |
 | Reset invalida outras sessões | Sim |
 | Mensagens de erro sem vazar stack | Sim (códigos mapeados; fallback `error.message`) |
 | UI admin-only ≠ autorização | Sidebar é só UX |
 
 ### 8.3 Superfície de confiança do papel
 
-`publicMetadata` é visível no client. Isso é aceitável para *mostrar* o menu. Um usuário não pode se promover pelo browser, mas **pode** chamar URLs. Toda ação privilegiada futura (convites, mudança de papel, APIs) deve repetir `requireAdmin()` / `getRole()` no servidor, nunca confiar só no React.
+`orgRole` e `has()` vêm da sessão (org ativa). Isso é aceitável para *mostrar* o menu. Um usuário não pode se promover pelo browser, mas **pode** chamar URLs. Toda ação privilegiada deve repetir `requireAdmin()` / `canReadPrivate()` no servidor, nunca confiar só no React.
 
-O JWT com `metadata` evita round-trip e mantém o papel na sessão já validada. Sem o template, `currentUser()` busca o usuário na Backend API — correto, porém mais lento e dependente de rede.
+Sem org ativa, `has({ role: 'org:admin' })` é falso e o geoportal cai no caminho público. `{{org.role}}` no session token alimenta o RLS do Supabase.
 
 ### 8.4 Enumeração de contas
 
@@ -330,32 +328,47 @@ Não há `app/api/webhooks/clerk`, nem verificação Svix, nem log de “quem co
 
 ## 9. Operação
 
+### 9.0 Checklist Organizations (obrigatório)
+
+Estas opções **não estão no código**. Sem elas, `orgRole` fica `undefined` e todo mundo vê só o público.
+
+1. Organizations habilitadas; org **Banco do preventório** com roles `admin` / `member` (`org:admin`, `org:member`).
+2. Membership **optional** (não required).
+3. Usuários **não** podem criar organizações.
+4. Cada usuário existente é membro da org: quem era `publicMetadata.role = "admin"` → `org:admin`; demais → `org:member`.
+5. Session token com `"user_role": "{{org.role}}"` (seção 4.4).
+6. Convites daqui pra frente: Organizations → Members → Invite (com role).
+7. Rodar `supabase/migration-org-roles.sql` no SQL Editor se o banco já existia.
+8. Opcional: `NEXT_PUBLIC_CLERK_ORGANIZATION_ID=org_…` no `.env.local`.
+
+O `publicMetadata.role` antigo pode ficar no usuário; o app não o lê mais.
+
 ### 9.1 Primeiro administrador
 
 1. `npx clerk@latest auth login` (conta da instância).
-2. Dashboard: Invite-only + e-mail/senha.
-3. Criar o usuário (convite ou create user).
-4. Em **Users → [usuário] → Metadata → public**: `{ "role": "admin" }`.
-5. Confirmar o JWT template (seção 4.2) se quiser o papel no token.
-6. Entrar em `/sign-in`. “Gerenciar usuários” deve aparecer.
+2. Dashboard: Invite-only + e-mail/senha + Organizations (checklist 9.0).
+3. Criar o usuário (convite da org ou create user + membership).
+4. Na org, role `org:admin`.
+5. Confirmar o session token (seção 4.4).
+6. Entrar em `/sign-in`. “Gestão” deve aparecer na sidebar.
 
-Usuário sem `role` entra, mas não vê / não abre a tela admin.
+Usuário sem membership entra, mas não vê / não abre as telas admin e não lê layers privados.
 
 ### 9.2 Convidar alguém (hoje)
 
-Só pelo **Clerk Dashboard → Users → Invite**. O e-mail leva a `/sign-up?__clerk_ticket=…`. Depois do aceite, definir `publicMetadata.role` (`reader` na maioria dos casos). O ideal é mandar o metadata já no convite (API/Dashboard), para não ficar janela sem papel.
+Só pelo **Clerk Dashboard → Organizations → Banco do preventório → Members → Invite**, com role `org:member` (ou `org:admin`). O e-mail leva a `/sign-up?__clerk_ticket=…`. O aceite já associa a pessoa à org.
 
 Não há CRUD de usuários no app. A página “Gerenciar usuários” só aplica o guard.
 
 ### 9.3 Promover / rebaixar
 
-Alterar `publicMetadata.role` no Dashboard. Sessões já emitidas podem continuar com o claim antigo até o JWT renovar, se o template estiver ativo — em dúvida, revogar sessões no Dashboard.
+Alterar a role do membro na org no Dashboard. Sessões já emitidas podem continuar com o claim antigo até o JWT renovar — em dúvida, revogar sessões ou pedir um novo login (`session.reload()`).
 
 ### 9.4 Produção
 
 - Trocar keys `pk_live_` / `sk_live_`.
 - Cadastrar o domínio de produção nas URLs da instância.
-- Manter invite-only.
+- Manter invite-only e a org única.
 - Não commitar `.env.production` com segredos.
 
 ---
@@ -366,20 +379,20 @@ Ordenados pelo impacto no modelo atual.
 
 | Gap | Risco / efeito | Notas |
 |-----|----------------|-------|
-| **Gerenciar usuários é stub** | Convites, papéis e revogação só no Dashboard | Próximo passo natural: `clerkClient().invitations` + `users.updateUserMetadata`, atrás de `requireAdmin()` |
+| **Gerenciar usuários é stub** | Convites, papéis e revogação só no Dashboard | Próximo passo: convites de org via `clerkClient().organizations`, atrás de `requireAdmin()` |
 | **Invite-only só no Dashboard** | Mudança na instância reabre cadastro na FAPI | Documentar como controle operacional; opcionalmente recusar sign-ups na API |
-| **Papel não entra no JWT por padrão** | Extra `currentUser()`; atraso se o claim for esquecido | Configurar o template; o código já tem fallback |
-| **`DEFAULT_ROLE` não é aplicado** | Usuário sem metadata não é `reader` explícito | Fail-closed para admin; convites devem setar `role` |
-| **Admin só numa página** | Fácil esquecer o guard em rotas/APIs novas | Considerar matcher de admin no proxy **ou** helper obrigatório em toda action |
+| **Session token sem `{{org.role}}`** | RLS do Supabase não vê a role da org | Configurar o claim; o app já lê `auth().orgRole` |
+| **Usuário sem membership** | Entra no dashboard mas só vê público | Fail-closed; convites devem ser da org |
+| **Admin só nas pages/actions atuais** | Fácil esquecer o guard em rotas/APIs novas | Considerar matcher de admin no proxy **ou** helper obrigatório em toda action |
 | **Item Conta inerte** | Sem troca de senha / perfil no app | Reset existe em `/forgot-password` (deslogado); logado não tem UserProfile |
 | **Sem webhooks** | App não reage a user.deleted, ban, etc. | Sessão some quando o Clerk invalida; dados locais futuros ficariam órfãos |
 | **Captcha só no sign-up** | Login pode quebrar se o Dashboard exigir bot protection | Espelhar `#clerk-captcha` no form de login se isso for ligado |
 | **Sem testes de auth** | Regressão em proxy, ticket, roles | Playwright/Clerk testing skill ainda não usados |
 | **Sem headers de segurança** | CSP/HSTS não definidos | Relevante na hora de publicar |
 | **Enumeração no forgot-password** | Confirma existência de e-mail | Aceitável no portal fechado |
-| **Gerenciar mapas sem distinção de papel** | Qualquer logado acessa | Confirmar se `reader` deve só visualizar |
+| **Gerenciar mapas sem distinção de papel** | Qualquer logado acessa | `org:member` deve só visualizar |
 | **Sem auditoria** | Não há trilha de ações admin | Necessário quando o CRUD de usuários existir |
-| **Organizations / SSO / billing** | Fora de escopo | Não usar `<OrganizationSwitcher />` nem Billing |
+| **Multi-org / SSO / billing** | Fora de escopo | Não usar `<OrganizationSwitcher />` nem Billing |
 | **MFA não é obrigatório** | O form trata o status; a instância pode não exigir | Ativar no Dashboard se o risco pedir |
 
 Fora de auth, mas relacionado: não há `app/api` nem persistência própria. Qualquer dado sensível futuro (mapas, PII) precisa de checagem de sessão **e** papel no servidor, não só no client.
@@ -393,11 +406,13 @@ Fora de auth, mas relacionado: não há `app/api` nem persistência própria. Qu
 3. **Não importar `@clerk/nextjs/server` em arquivos usados pelo client.** Papéis puros em `lib/roles.ts`; I/O em `lib/roles.server.ts`.
 4. **Não usar `SignUpButton` / hosted SignUp.** Quebra o modelo de convite.
 5. **Não tratar a sidebar como ACL.** Guard no servidor em toda rota privilegiada.
-6. **Custom flow = Future API.** `signIn.password` + `finalize`, não `prepareFirstFactor` / `setActive`.
+6. **Custom flow = Future API.** `signIn.password` + `finalize`, não `prepareFirstFactor`. `setActive({ organization })` é o jeito certo de ativar a org — não usar `setActive({ session })` do Core 2.
 7. **`auth()` é async.** Sempre `await auth()`.
 8. **Novas rotas públicas** precisam entrar em `PUBLIC_ROUTES` (e em `AUTH_REDIRECT_ROUTES` se forem telas de auth).
 9. **Matcher `/__clerk/:path*`** deve permanecer.
 10. **Convite = `strategy: 'ticket'`.** Cadastro por e-mail/senha aberto não deve ser adicionado.
+11. **Não montar `<OrganizationSwitcher />`.** Uma org só; membership optional + `ActivateOrganization`.
+12. **`/sign-in/tasks` não é redirect de quem já está logado.** O proxy deixa essa rota passar para ativar a org. Não tratar o prefixo `/sign-in` como redirect cego.
 
 ---
 
@@ -405,8 +420,8 @@ Fora de auth, mas relacionado: não há `app/api` nem persistência própria. Qu
 
 ```
                     ┌─────────────────────────┐
-                    │  Clerk (IdP + users)    │
-                    │  invite-only, metadata  │
+                    │  Clerk (IdP + org)      │
+                    │  invite-only, org roles │
                     └───────────┬─────────────┘
                                 │ cookie de sessão / FAPI
 ┌───────────────┐   public     ┌▼──────────────┐    sessão     ┌─────────────────────┐
@@ -417,8 +432,8 @@ Fora de auth, mas relacionado: não há `app/api` nem persistência própria. Qu
 │ /forgot-pass  │                                              │   requireAdmin()    │
 └───────────────┘                                              └─────────────────────┘
         ▲                                                                ▲
-        │ useSignIn / useSignUp                                          │ useUser
-        │ (custom UI)                                                    │ publicMetadata.role
+        │ useSignIn / useSignUp                                          │ useAuth().has / orgRole
+        │ (custom UI) + setActive(org)                                   │ ActivateOrganization
         └────────────────────────── ClerkProvider (root layout) ─────────┘
 ```
 
@@ -429,15 +444,17 @@ Fora de auth, mas relacionado: não há `app/api` nem persistência própria. Qu
 | API | Onde | Para quê |
 |-----|------|----------|
 | `clerkMiddleware` + `auth.protect()` | `proxy.ts`, dashboard layout | Sessão |
-| `auth()` / `currentUser()` | `lib/roles.server.ts` | Papel no servidor |
+| `auth()` / `has({ role })` | `lib/roles.server.ts` | Papel no servidor (`orgRole`) |
 | `useSignIn()` | `sign-in-form.tsx` | Login, MFA, reset |
 | `useSignUp()` | `sign-up-form.tsx` | Ticket |
-| `useUser()` | sidebar, NavUser | Perfil e papel (UX) |
+| `useAuth().has` | sidebar, geoportal | Papel (UX) |
+| `useUser()` | NavUser | Perfil |
+| `useClerk().setActive` | sign-in/up, ActivateOrganization | Org ativa |
 | `useClerk().signOut` | NavUser | Logout |
 | `<Show when="signed-in\|signed-out">` | home | CTA Entrar / Painel |
 | `ClerkProvider` | root layout | Contexto |
 
-Não usados (de propósito): `SignIn`, `SignUp`, `UserButton`, `OrganizationSwitcher`, `clerkClient` (ainda), webhooks, Billing.
+Não usados (de propósito): `SignIn`, `SignUp`, `UserButton`, `OrganizationSwitcher`, webhooks, Billing.
 
 ---
 
@@ -446,9 +463,9 @@ Não usados (de propósito): `SignIn`, `SignUp`, `UserButton`, `OrganizationSwit
 Quando **Gerenciar usuários** deixar de ser stub, o caminho alinhado a este desenho é:
 
 1. Server Actions ou Route Handlers com `await requireAdmin()` **antes** de qualquer `clerkClient()`.
-2. Convites: `clerkClient().invitations.createInvitation` com `redirectUrl` em `/sign-up` e `publicMetadata: { role: 'reader' }` (ou `admin`).
-3. Listar / banir / atualizar metadata pela Backend API.
-4. Webhook `user.deleted` / `session.revoked` se existir cópia local de dados.
-5. Testes e2e de login, ticket sem/com query, reader bloqueado em gerenciar-usuarios, admin passando.
+2. Convites: `clerkClient().organizations.createOrganizationInvitation` com `redirectUrl` em `/sign-up` e `role: 'org:member'` (ou `org:admin`).
+3. Listar / remover / atualizar membership pela Backend API.
+4. Webhook `organizationMembership.*` / `user.deleted` se existir cópia local de dados.
+5. Testes e2e de login, ticket sem/com query, member bloqueado em gerenciar-usuarios, admin passando.
 
 Não misturar Firebase Auth nesse fluxo.

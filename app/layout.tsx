@@ -1,6 +1,7 @@
 import { ClerkProvider } from '@clerk/nextjs'
 import type { Metadata } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
+import { ActivateOrganization } from '@/components/activate-organization'
 import { Providers } from '@/components/providers'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
@@ -28,8 +29,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${fontSans.variable} ${fontMono.variable} antialiased`}>
-        <ClerkProvider>
+        <ClerkProvider taskUrls={{ 'choose-organization': '/sign-in/tasks' }}>
           <Providers>
+            <ActivateOrganization />
             <Toaster />
             {children}
           </Providers>
