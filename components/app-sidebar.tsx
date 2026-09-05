@@ -3,6 +3,7 @@
 import { useAuth } from '@clerk/nextjs'
 import { BookOpenIcon, FolderIcon, MapIcon } from 'lucide-react'
 import type * as React from 'react'
+import { BrandMark } from '@/components/brand-mark'
 import { type NavItem, NavMain } from '@/components/nav-main'
 import { NavProjects } from '@/components/nav-projects'
 import { NavUser } from '@/components/nav-user'
@@ -115,9 +116,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <div>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary font-bold text-sidebar-primary-foreground">
-                  B
-                </div>
+                <BrandMark />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">
                     Banco do Preventório

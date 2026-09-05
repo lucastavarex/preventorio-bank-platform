@@ -3,6 +3,7 @@
 import { LockIcon, MapIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
+import { BrandMark } from '@/components/brand-mark'
 import { SignInForm } from '@/components/sign-in-form'
 import { SignInGateShell } from '@/components/sign-in-gate-shell'
 import { Button } from '@/components/ui/button'
@@ -18,9 +19,7 @@ export function SignInGate() {
     <SignInGateShell>
       <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-3">
-          <div className="flex size-12 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground text-xl">
-            B
-          </div>
+          <BrandMark size="md" />
           <div className="flex flex-col gap-2">
             <p className="font-semibold text-sm tracking-wide">
               Banco do Preventório

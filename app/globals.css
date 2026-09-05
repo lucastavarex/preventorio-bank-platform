@@ -7,8 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Inter, sans-serif;
-  --font-mono: JetBrains Mono, monospace;
+  --font-sans: var(--font-ibm-plex-sans);
+  --font-mono: var(--font-jetbrains-mono);
   --font-serif: Georgia, serif;
   --radius: 0.6rem;
   --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
@@ -107,9 +107,9 @@
   --sidebar-accent-foreground: oklch(0.4575 0.0843 166.157);
   --sidebar-border: oklch(0.9302 0.0118 174.2144);
   --sidebar-ring: oklch(0.6373 0.1362 162.517);
-  --font-sans: Inter, sans-serif;
+  --font-sans: var(--font-ibm-plex-sans);
   --font-serif: Georgia, serif;
-  --font-mono: JetBrains Mono, monospace;
+  --font-mono: var(--font-jetbrains-mono);
   --shadow-color: hsl(160 50% 10%);
   --shadow-opacity: 0.06;
   --shadow-blur: 12px;
@@ -173,9 +173,9 @@
   --sidebar-accent-foreground: oklch(0.9858 0.0018 174.5345);
   --sidebar-border: oklch(0.2503 0.0187 172.1743);
   --sidebar-ring: oklch(0.7678 0.1655 162.189);
-  --font-sans: Inter, sans-serif;
+  --font-sans: var(--font-ibm-plex-sans);
   --font-serif: Georgia, serif;
-  --font-mono: JetBrains Mono, monospace;
+  --font-mono: var(--font-jetbrains-mono);
   --shadow-color: hsl(0 0% 0%);
   --shadow-opacity: 0.45;
   --shadow-blur: 20px;

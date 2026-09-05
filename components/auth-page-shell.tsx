@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { BrandMark } from '@/components/brand-mark'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -6,9 +7,7 @@ function AuthBrandPanel() {
   return (
     <div className="relative hidden bg-primary/15 md:block">
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-8 text-center">
-        <div className="flex size-12 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground text-xl">
-          B
-        </div>
+        <BrandMark variant="badge" size="md" />
         <p className="font-semibold">Banco do Preventório</p>
         <p className="text-balance text-muted-foreground text-sm">
           Portal interno do geoportal
