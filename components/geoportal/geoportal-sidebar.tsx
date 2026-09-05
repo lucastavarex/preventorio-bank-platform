@@ -12,8 +12,10 @@ import {
   InfoIcon,
   LandmarkIcon,
   LayersIcon,
+  LayoutDashboardIcon,
   LeafIcon,
   ListIcon,
+  LogInIcon,
   MapIcon,
   PencilIcon,
   SearchIcon,
@@ -29,6 +31,7 @@ import {
   BASEMAP_OPTIONS,
   type BasemapId,
 } from '@/components/map/basemap-styles'
+import { NavUser } from '@/components/nav-user'
 import {
   Accordion,
   AccordionContent,
@@ -110,7 +113,7 @@ export function GeoportalSidebar({
   onToggleClass,
 }: GeoportalSidebarProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const { user } = useUser()
+  const { user, isLoaded } = useUser()
   const isAdmin = isAdminRole(parseRole(user?.publicMetadata.role))
   const [query, setQuery] = useState('')
   const [accordionValue, setAccordionValue] = useState<string[]>([])
@@ -237,6 +240,16 @@ export function GeoportalSidebar({
           </div>
 
           <div className="flex flex-col items-center gap-3 p-2">
+            {!isLoaded || user ? (
+              <NavUser standalone compact />
+            ) : (
+              <RailButton title="Entrar" href="/sign-in">
+                <LogInIcon />
+              </RailButton>
+            )}
+            <RailButton title="Portal interno" href="/dashboard">
+              <LayoutDashboardIcon />
+            </RailButton>
             <RailButton
               title="Informações GeoPortal"
               onClick={() => setInfoOpen(true)}
@@ -459,7 +472,23 @@ export function GeoportalSidebar({
           </Accordion>
         </div>
 
-        <div className="border-t p-2">
+        <div className="flex flex-col gap-1 border-t p-2">
+          {!isLoaded || user ? (
+            <NavUser standalone />
+          ) : (
+            <Button asChild variant="ghost" className="w-full justify-start">
+              <Link href="/sign-in">
+                <LogInIcon data-icon="inline-start" />
+                Entrar
+              </Link>
+            </Button>
+          )}
+          <Button asChild variant="ghost" className="w-full justify-start">
+            <Link href="/dashboard">
+              <LayoutDashboardIcon data-icon="inline-start" />
+              Portal interno
+            </Link>
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -608,26 +637,40 @@ function LayerRow({
 function RailButton({
   title,
   onClick,
+  href,
   children,
 }: {
   title: string
-  onClick: () => void
+  onClick?: () => void
+  href?: string
   children: ReactNode
 }) {
+  const button = href ? (
+    <Button
+      asChild
+      variant="ghost"
+      size="icon-sm"
+      title={title}
+      aria-label={title}
+    >
+      <Link href={href}>{children}</Link>
+    </Button>
+  ) : (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  )
+
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          title={title}
-          aria-label={title}
-          onClick={onClick}
-        >
-          {children}
-        </Button>
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent side="right">{title}</TooltipContent>
     </Tooltip>
   )
