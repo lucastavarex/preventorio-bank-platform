@@ -41,6 +41,7 @@ const data: {
       url: '#',
       icon: <FolderIcon />,
       isActive: true,
+      adminOnly: true,
       items: [
         {
           title: 'Grupos',
@@ -99,10 +100,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useUser()
   const isAdmin = isAdminRole(parseRole(user?.publicMetadata.role))
 
-  const navMain = data.navMain.map(item => ({
-    ...item,
-    items: item.items?.filter(subItem => !subItem.adminOnly || isAdmin),
-  }))
+  const navMain = data.navMain
+    .filter(item => !item.adminOnly || isAdmin)
+    .map(item => ({
+      ...item,
+      items: item.items?.filter(subItem => !subItem.adminOnly || isAdmin),
+    }))
+    .filter(item => !item.items || item.items.length > 0)
 
   return (
     <Sidebar collapsible="icon" {...props}>

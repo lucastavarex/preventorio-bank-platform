@@ -182,8 +182,7 @@ export function GeoportalSidebar({
         <DialogHeader>
           <DialogTitle>Informações GeoPortal</DialogTitle>
           <DialogDescription>
-            Visualização pública das camadas geográficas do Banco do
-            Preventório.
+            Visualização das camadas geográficas.
           </DialogDescription>
         </DialogHeader>
         <p className="text-muted-foreground text-sm">

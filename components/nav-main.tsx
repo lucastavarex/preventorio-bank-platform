@@ -31,6 +31,7 @@ export type NavItem = {
   url: string
   icon?: React.ReactNode
   isActive?: boolean
+  adminOnly?: boolean
   items?: NavSubItem[]
 }
 

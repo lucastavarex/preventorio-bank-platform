@@ -1,7 +1,13 @@
 import { currentUser } from '@clerk/nextjs/server'
+import { InfoIcon } from 'lucide-react'
 import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { DEFAULT_ROLE, parseRole, type Role } from '@/lib/roles'
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -67,10 +73,23 @@ export default async function ContaPage() {
           <dd className="min-w-0 truncate text-sm">{email || 'Sem e-mail'}</dd>
 
           <dt className="text-muted-foreground text-sm">Papel</dt>
-          <dd>
+          <dd className="flex items-center gap-1.5">
             <Badge variant={role === 'admin' ? 'default' : 'secondary'}>
               {ROLE_LABELS[role]}
             </Badge>
+            <Tooltip>
+              <TooltipTrigger
+                type="button"
+                aria-label="Sobre os papéis de administrador e leitor"
+                className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <InfoIcon className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>
+                Apenas administradores podem editar as camadas. Leitores podem
+                apenas visualizá-las.
+              </TooltipContent>
+            </Tooltip>
           </dd>
         </dl>
       </div>
