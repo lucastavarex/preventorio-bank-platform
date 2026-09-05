@@ -1,5 +1,5 @@
 import { SignInForm } from '@/components/sign-in-form'
 
 export default function ForgotPasswordPage() {
-  return <SignInForm mode="forgot" />
+  return <SignInForm mode="forgot" variant="gate" />
 }

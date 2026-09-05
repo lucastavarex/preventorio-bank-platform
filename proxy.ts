@@ -30,6 +30,12 @@ const clerkProxy = clerkMiddleware(async (auth, request) => {
   const { pathname } = request.nextUrl
   const { userId } = await auth()
 
+  if (pathname === '/') {
+    return NextResponse.redirect(
+      new URL(userId ? '/dashboard' : '/sign-in', request.url)
+    )
+  }
+
   if (userId && isAuthRedirectPath(pathname)) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
