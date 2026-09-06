@@ -21,6 +21,7 @@ const labels: Record<string, string> = {
   'gerenciar-mapas': 'Gerenciar mapas',
   'gerenciar-usuarios': 'Gerenciar usuários',
   documentacao: 'Documentação',
+  artigo: 'Artigo',
 }
 
 export function DashboardBreadcrumb() {

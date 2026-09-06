@@ -88,7 +88,7 @@ const data: {
     },
     {
       name: 'Artigo "Mapeando o (in)visível"',
-      url: 'https://zenodo.org/records/16809202',
+      url: '/dashboard/artigo',
     },
     {
       name: 'Sobre',
