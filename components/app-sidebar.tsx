@@ -70,10 +70,6 @@ const data: {
           title: 'WP3 Brazil data',
           url: 'https://onedrive.live.com/?redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvcyFBaFlOR1huNVVWcllnY0VKNV84U21PeG9ueWtYdVE&id=D85A51F979190D16%2124713&cid=D85A51F979190D16&sb=name&sd=1',
         },
-        {
-          title: 'Metodologia',
-          url: ROUTES.origem,
-        },
       ],
     },
   ],
