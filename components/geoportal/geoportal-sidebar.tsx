@@ -265,7 +265,7 @@ export function GeoportalSidebar({
 
   return (
     <>
-      <aside className="absolute inset-y-0 left-0 z-20 flex w-80 max-w-[calc(100vw-1rem)] flex-col border-r bg-background/95 shadow-lg backdrop-blur-sm">
+      <aside className="absolute inset-y-0 left-0 z-20 flex w-80 max-w-[calc(100vw-1rem)] flex-col overflow-hidden border-r bg-background/95 shadow-lg backdrop-blur-sm">
         <div className="flex items-center gap-2 border-b px-3 py-2.5">
           <Button
             type="button"
@@ -452,7 +452,7 @@ export function GeoportalSidebar({
           </Accordion>
         </div>
 
-        <div className="flex flex-col gap-1 border-t p-2">
+        <div className="relative isolate flex shrink-0 flex-col gap-1 border-t bg-background/95 p-2">
           {!isLoaded || user ? (
             <NavUser standalone />
           ) : (
