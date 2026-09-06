@@ -194,10 +194,23 @@ export function GeoportalSidebar({
     </Dialog>
   )
 
-  if (!open) {
-    return (
-      <>
-        <aside className="absolute inset-y-0 left-0 z-20 flex w-12 flex-col border-r bg-background/95 shadow-md backdrop-blur-sm">
+  return (
+    <>
+      <aside
+        className={cn(
+          'absolute inset-y-0 left-0 z-20 overflow-hidden border-r bg-background/95 backdrop-blur-sm',
+          'transition-[width,max-width,box-shadow] duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0',
+          open ? 'w-80 max-w-[calc(100vw-1rem)] shadow-lg' : 'w-12 shadow-md'
+        )}
+      >
+        <div
+          inert={open}
+          aria-hidden={open}
+          className={cn(
+            'absolute inset-0 flex flex-col transition-opacity duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0',
+            open ? 'pointer-events-none opacity-0' : 'opacity-100'
+          )}
+        >
           <div className="flex flex-col items-center gap-3 p-2">
             <RailButton title="Expandir menu" onClick={() => openPanel()}>
               <ChevronsRightIcon />
@@ -258,217 +271,220 @@ export function GeoportalSidebar({
               <InfoIcon />
             </RailButton>
           </div>
-        </aside>
-        {infoDialog}
-      </>
-    )
-  }
-
-  return (
-    <>
-      <aside className="absolute inset-y-0 left-0 z-20 flex w-80 max-w-[calc(100vw-1rem)] flex-col overflow-hidden border-r bg-background/95 shadow-lg backdrop-blur-sm">
-        <div className="flex items-center gap-2 border-b px-3 py-2.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            title="Recolher menu"
-            aria-label="Recolher menu"
-            onClick={closePanel}
-          >
-            <ChevronsLeftIcon />
-          </Button>
-          <h2 className="min-w-0 flex-1 truncate font-semibold text-sm">
-            Controle do Mapa
-          </h2>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            title="Fechar menu"
-            aria-label="Fechar menu"
-            onClick={closePanel}
-          >
-            <XIcon />
-          </Button>
         </div>
 
-        <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-          <section className="flex flex-col gap-2">
-            <h3 className="font-medium text-sm">Mapa Base</h3>
-            <BasemapToggle value={basemapId} onChange={onBasemapChange} />
-          </section>
+        <div
+          inert={!open}
+          aria-hidden={!open}
+          className={cn(
+            'absolute inset-0 flex min-w-80 flex-col overflow-hidden transition-opacity duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0',
+            open ? 'opacity-100' : 'pointer-events-none opacity-0'
+          )}
+        >
+          <div className="flex items-center gap-2 border-b px-3 py-2.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Recolher menu"
+              aria-label="Recolher menu"
+              onClick={closePanel}
+            >
+              <ChevronsLeftIcon />
+            </Button>
+            <h2 className="min-w-0 flex-1 truncate font-semibold text-sm">
+              Controle do Mapa
+            </h2>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Fechar menu"
+              aria-label="Fechar menu"
+              onClick={closePanel}
+            >
+              <XIcon />
+            </Button>
+          </div>
 
-          <Separator />
+          <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+            <section className="flex flex-col gap-2">
+              <h3 className="font-medium text-sm">Mapa Base</h3>
+              <BasemapToggle value={basemapId} onChange={onBasemapChange} />
+            </section>
 
-          <Accordion
-            type="multiple"
-            value={accordionValue}
-            onValueChange={setAccordionValue}
-            className="gap-1"
-          >
-            <AccordionItem value="active-layers">
-              <AccordionTrigger className={accordionTriggerClassName}>
-                <span className="flex min-w-0 items-center gap-2">
-                  <LayersIcon className="size-4" />
-                  <span className="truncate">Camadas Ativas</span>
-                  <Badge variant="secondary">{activeLayers.length}</Badge>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                {activeLayers.length === 0 ? (
-                  <p className="text-muted-foreground text-xs">
-                    Nenhuma camada ativada.
-                  </p>
-                ) : (
-                  <ActiveLayersList
-                    layers={activeLayers}
-                    onReorder={onReorderLayers}
-                    renderItem={(layer, dragHandle) => (
-                      <LayerRow
-                        layer={layer}
-                        isVisible
-                        isLoading={loadingLayers.has(layer.id)}
-                        error={layerErrors[layer.id]}
-                        opacity={
-                          layerOpacity[layer.id] ?? defaultOpacity(layer.style)
-                        }
-                        dragHandle={dragHandle}
-                        onToggle={onToggleLayer}
-                        onNameClick={onLayerNameClick}
-                        onDownload={onDownloadLayer}
-                        onOpacityChange={onOpacityChange}
-                        isAdmin={isAdmin}
-                      />
-                    )}
-                  />
-                )}
-              </AccordionContent>
-            </AccordionItem>
-            {legendLayers.length > 0 && (
-              <AccordionItem value="legend">
+            <Separator />
+
+            <Accordion
+              type="multiple"
+              value={accordionValue}
+              onValueChange={setAccordionValue}
+              className="gap-1"
+            >
+              <AccordionItem value="active-layers">
                 <AccordionTrigger className={accordionTriggerClassName}>
                   <span className="flex min-w-0 items-center gap-2">
-                    <ListIcon className="size-4" />
-                    <span className="truncate">Legenda</span>
+                    <LayersIcon className="size-4" />
+                    <span className="truncate">Camadas Ativas</span>
+                    <Badge variant="secondary">{activeLayers.length}</Badge>
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <GeoportalLegendBody
-                    layers={legendLayers}
-                    hiddenClasses={hiddenClasses}
-                    onToggleClass={onToggleClass}
-                  />
+                  {activeLayers.length === 0 ? (
+                    <p className="text-muted-foreground text-xs">
+                      Nenhuma camada ativada.
+                    </p>
+                  ) : (
+                    <ActiveLayersList
+                      layers={activeLayers}
+                      onReorder={onReorderLayers}
+                      renderItem={(layer, dragHandle) => (
+                        <LayerRow
+                          layer={layer}
+                          isVisible
+                          isLoading={loadingLayers.has(layer.id)}
+                          error={layerErrors[layer.id]}
+                          opacity={
+                            layerOpacity[layer.id] ??
+                            defaultOpacity(layer.style)
+                          }
+                          dragHandle={dragHandle}
+                          onToggle={onToggleLayer}
+                          onNameClick={onLayerNameClick}
+                          onDownload={onDownloadLayer}
+                          onOpacityChange={onOpacityChange}
+                          isAdmin={isAdmin}
+                        />
+                      )}
+                    />
+                  )}
                 </AccordionContent>
               </AccordionItem>
-            )}
-          </Accordion>
-
-          <div className="relative">
-            <Input
-              ref={searchInputRef}
-              value={query}
-              onChange={event => setQuery(event.target.value)}
-              placeholder="Pesquisar camadas"
-              aria-label="Pesquisar camadas"
-              className="pr-8"
-            />
-            <SearchIcon className="pointer-events-none absolute top-1/2 right-2 size-4 -translate-y-1/2 text-muted-foreground" />
-          </div>
-
-          {groupsWithLayers.length === 0 && (
-            <p className="text-muted-foreground text-sm">
-              Nenhum grupo cadastrado.
-            </p>
-          )}
-
-          {filteredGroups.length === 0 && groupsWithLayers.length > 0 && (
-            <p className="text-muted-foreground text-sm">
-              Nenhuma camada encontrada.
-            </p>
-          )}
-
-          <Accordion
-            type="multiple"
-            value={accordionValue}
-            onValueChange={setAccordionValue}
-            className="gap-1"
-          >
-            {filteredGroups.map(group => {
-              const Icon = getGroupIcon(group.title)
-              return (
-                <AccordionItem key={group.id} value={group.id}>
+              {legendLayers.length > 0 && (
+                <AccordionItem value="legend">
                   <AccordionTrigger className={accordionTriggerClassName}>
                     <span className="flex min-w-0 items-center gap-2">
-                      <Icon className="size-4" />
-                      <span className="truncate">{group.title}</span>
-                      {group.is_private && (
-                        <Badge variant="secondary">Privado</Badge>
-                      )}
+                      <ListIcon className="size-4" />
+                      <span className="truncate">Legenda</span>
                     </span>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="flex flex-col gap-2">
-                      {group.layers.map(layer => {
-                        const isVisible = visibleLayers.has(layer.id)
-                        return (
-                          <LayerRow
-                            key={layer.id}
-                            layer={layer}
-                            isVisible={isVisible}
-                            isLoading={loadingLayers.has(layer.id)}
-                            error={layerErrors[layer.id]}
-                            opacity={
-                              layerOpacity[layer.id] ??
-                              defaultOpacity(layer.style)
-                            }
-                            onToggle={onToggleLayer}
-                            onNameClick={onLayerNameClick}
-                            onDownload={onDownloadLayer}
-                            onOpacityChange={onOpacityChange}
-                            isAdmin={isAdmin}
-                          />
-                        )
-                      })}
-                      {group.layers.length === 0 && (
-                        <p className="text-muted-foreground text-xs">
-                          Nenhum layer
-                        </p>
-                      )}
-                    </div>
+                    <GeoportalLegendBody
+                      layers={legendLayers}
+                      hiddenClasses={hiddenClasses}
+                      onToggleClass={onToggleClass}
+                    />
                   </AccordionContent>
                 </AccordionItem>
-              )
-            })}
-          </Accordion>
-        </div>
+              )}
+            </Accordion>
 
-        <div className="relative isolate flex shrink-0 flex-col gap-1 border-t bg-background/95 p-2">
-          {!isLoaded || user ? (
-            <NavUser standalone />
-          ) : (
+            <div className="relative">
+              <Input
+                ref={searchInputRef}
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder="Pesquisar camadas"
+                aria-label="Pesquisar camadas"
+                className="pr-8"
+              />
+              <SearchIcon className="pointer-events-none absolute top-1/2 right-2 size-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
+
+            {groupsWithLayers.length === 0 && (
+              <p className="text-muted-foreground text-sm">
+                Nenhum grupo cadastrado.
+              </p>
+            )}
+
+            {filteredGroups.length === 0 && groupsWithLayers.length > 0 && (
+              <p className="text-muted-foreground text-sm">
+                Nenhuma camada encontrada.
+              </p>
+            )}
+
+            <Accordion
+              type="multiple"
+              value={accordionValue}
+              onValueChange={setAccordionValue}
+              className="gap-1"
+            >
+              {filteredGroups.map(group => {
+                const Icon = getGroupIcon(group.title)
+                return (
+                  <AccordionItem key={group.id} value={group.id}>
+                    <AccordionTrigger className={accordionTriggerClassName}>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Icon className="size-4" />
+                        <span className="truncate">{group.title}</span>
+                        {group.is_private && (
+                          <Badge variant="secondary">Privado</Badge>
+                        )}
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="flex flex-col gap-2">
+                        {group.layers.map(layer => {
+                          const isVisible = visibleLayers.has(layer.id)
+                          return (
+                            <LayerRow
+                              key={layer.id}
+                              layer={layer}
+                              isVisible={isVisible}
+                              isLoading={loadingLayers.has(layer.id)}
+                              error={layerErrors[layer.id]}
+                              opacity={
+                                layerOpacity[layer.id] ??
+                                defaultOpacity(layer.style)
+                              }
+                              onToggle={onToggleLayer}
+                              onNameClick={onLayerNameClick}
+                              onDownload={onDownloadLayer}
+                              onOpacityChange={onOpacityChange}
+                              isAdmin={isAdmin}
+                            />
+                          )
+                        })}
+                        {group.layers.length === 0 && (
+                          <p className="text-muted-foreground text-xs">
+                            Nenhum layer
+                          </p>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )
+              })}
+            </Accordion>
+          </div>
+
+          <div className="relative isolate flex shrink-0 flex-col gap-1 border-t bg-background/95 p-2">
+            {!isLoaded || user ? (
+              <NavUser standalone />
+            ) : (
+              <Button asChild variant="ghost" className="w-full justify-start">
+                <Link href="/sign-in">
+                  <LogInIcon data-icon="inline-start" />
+                  Entrar
+                </Link>
+              </Button>
+            )}
             <Button asChild variant="ghost" className="w-full justify-start">
-              <Link href="/sign-in">
-                <LogInIcon data-icon="inline-start" />
-                Entrar
+              <Link href="/dashboard">
+                <LayoutDashboardIcon data-icon="inline-start" />
+                Portal interno
               </Link>
             </Button>
-          )}
-          <Button asChild variant="ghost" className="w-full justify-start">
-            <Link href="/dashboard">
-              <LayoutDashboardIcon data-icon="inline-start" />
-              Portal interno
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => setInfoOpen(true)}
-          >
-            <InfoIcon data-icon="inline-start" />
-            Sobre o geoportal
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => setInfoOpen(true)}
+            >
+              <InfoIcon data-icon="inline-start" />
+              Sobre o geoportal
+            </Button>
+          </div>
         </div>
       </aside>
       {infoDialog}
