@@ -262,7 +262,7 @@ export function SignInForm({
           <div className="flex flex-col items-center gap-2 text-center">
             <h1 className="font-bold text-2xl">Nova senha</h1>
             <p className="text-balance text-muted-foreground">
-              Defina uma nova senha para acessar o portal.
+              Defina uma nova senha para acessar o geoportal.
             </p>
           </div>
           <Field data-invalid={!!passwordError}>
@@ -400,7 +400,7 @@ export function SignInForm({
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="font-bold text-2xl">Bem-vindo de volta</h1>
           <p className="text-balance text-muted-foreground">
-            Entre na sua conta do portal interno
+            Entre com o convite para acessar o geoportal.
           </p>
         </div>
         <Field data-invalid={!!identifierError}>

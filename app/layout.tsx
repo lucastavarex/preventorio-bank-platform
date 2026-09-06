@@ -5,6 +5,7 @@ import { ActivateOrganization } from '@/components/activate-organization'
 import { Providers } from '@/components/providers'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
+import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site'
 
 const fontSans = IBM_Plex_Sans({
   subsets: ['latin'],
@@ -18,8 +19,8 @@ const fontMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Banco do Preventório',
-  description: 'Portal interno do Banco do Preventório',
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
 }
 
 export default function RootLayout({

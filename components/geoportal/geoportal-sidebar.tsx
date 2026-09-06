@@ -56,6 +56,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { CLERK_ORG_ROLES } from '@/lib/roles'
+import { ROUTES, SITE_NAME } from '@/lib/site'
 import type { Group, Layer, LayerStyle } from '@/lib/supabase/types'
 
 type GroupWithLayers = Group & { layers: Layer[] }
@@ -174,14 +175,20 @@ export function GeoportalSidebar({
     <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Informações GeoPortal</DialogTitle>
+          <DialogTitle>Sobre o {SITE_NAME}</DialogTitle>
           <DialogDescription>
-            Visualização das camadas geográficas.
+            Visualização e consulta das camadas do mapeamento participativo do
+            Morro do Preventório, em Niterói (RJ).
           </DialogDescription>
         </DialogHeader>
         <p className="text-muted-foreground text-sm">
-          Mapas base: OpenStreetMap e Esri World Imagery.
+          As camadas foram produzidas pelo LABIS em parceria com o Banco
+          Comunitário do Preventório e convertidas a partir de projetos QGIS.
+          Mapas-base: OpenStreetMap e Esri World Imagery.
         </p>
+        <Button asChild variant="outline">
+          <Link href={ROUTES.sobre}>Saiba mais sobre o projeto</Link>
+        </Button>
       </DialogContent>
     </Dialog>
   )
@@ -244,7 +251,7 @@ export function GeoportalSidebar({
               <LayoutDashboardIcon />
             </RailButton>
             <RailButton
-              title="Informações GeoPortal"
+              title="Sobre o geoportal"
               onClick={() => setInfoOpen(true)}
             >
               <InfoIcon />
@@ -469,7 +476,7 @@ export function GeoportalSidebar({
             onClick={() => setInfoOpen(true)}
           >
             <InfoIcon data-icon="inline-start" />
-            Informações GeoPortal
+            Sobre o geoportal
           </Button>
         </div>
       </aside>

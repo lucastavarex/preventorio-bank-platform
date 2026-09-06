@@ -18,6 +18,7 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { CLERK_ORG_ROLES } from '@/lib/roles'
+import { PARTNERS, ROUTES, SITE_NAME, SITE_SUBTITLE } from '@/lib/site'
 
 const data: {
   navMain: NavItem[]
@@ -54,11 +55,6 @@ const data: {
           url: '/dashboard/layers',
           adminOnly: true,
         },
-        {
-          title: 'Gerenciar usuários',
-          url: '/dashboard/geoportal/gerenciar-usuarios',
-          adminOnly: true,
-        },
       ],
     },
     {
@@ -76,23 +72,23 @@ const data: {
         },
         {
           title: 'Metodologia',
-          url: '#',
+          url: ROUTES.origem,
         },
       ],
     },
   ],
   projects: [
     {
-      name: 'Site',
-      url: 'https://bancopreventorio.org.br/',
+      name: PARTNERS.banco.name,
+      url: PARTNERS.banco.url,
     },
     {
       name: 'Artigo "Mapeando o (in)visível"',
-      url: '/dashboard/artigo',
+      url: ROUTES.artigo,
     },
     {
       name: 'Sobre',
-      url: '#',
+      url: ROUTES.sobre,
     },
   ],
 }
@@ -118,10 +114,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div>
                 <BrandMark />
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">
-                    Banco do Preventório
-                  </span>
-                  <span className="truncate text-xs">Portal interno</span>
+                  <span className="truncate font-semibold">{SITE_NAME}</span>
+                  <span className="truncate text-xs">{SITE_SUBTITLE}</span>
                 </div>
               </div>
             </SidebarMenuButton>

@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import logoVerde from '@/app/assets/logo-verde.png'
+import { SITE_NAME } from '@/lib/site'
 import { cn } from '@/lib/utils'
 
 const sizes = {
@@ -23,7 +24,7 @@ export function BrandMark({
     return (
       <Image
         src="/favicon.ico"
-        alt="Banco do Preventório"
+        alt={SITE_NAME}
         width={px}
         height={px}
         unoptimized
@@ -35,7 +36,7 @@ export function BrandMark({
   return (
     <Image
       src={logoVerde}
-      alt="Banco do Preventório"
+      alt={SITE_NAME}
       width={px}
       height={px}
       className={cn(sizeClass, 'shrink-0', className)}

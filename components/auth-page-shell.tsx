@@ -1,17 +1,25 @@
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { BrandMark } from '@/components/brand-mark'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ROUTES, SITE_NAME } from '@/lib/site'
 
 function AuthBrandPanel() {
   return (
     <div className="relative hidden bg-primary/15 md:block">
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-8 text-center">
         <BrandMark variant="badge" size="md" />
-        <p className="font-semibold">Banco do Preventório</p>
+        <p className="font-semibold">{SITE_NAME}</p>
         <p className="text-balance text-muted-foreground text-sm">
-          Portal interno do geoportal
+          Acesso por convite a pesquisadores e parceiros
         </p>
+        <Link
+          href={ROUTES.sobre}
+          className="text-muted-foreground text-sm underline-offset-4 hover:underline"
+        >
+          Sobre o projeto
+        </Link>
       </div>
     </div>
   )

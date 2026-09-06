@@ -1,7 +1,12 @@
 'use client'
 
 import { useClerk, useUser } from '@clerk/nextjs'
-import { BadgeCheckIcon, ChevronsUpDownIcon, LogOutIcon } from 'lucide-react'
+import {
+  BadgeCheckIcon,
+  ChevronsUpDownIcon,
+  LogInIcon,
+  LogOutIcon,
+} from 'lucide-react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -72,7 +77,18 @@ function SidebarNavUser() {
   }
 
   if (!user.profile) {
-    return null
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton size="lg" asChild>
+            <Link href="/sign-in">
+              <LogInIcon />
+              <span>Entrar</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
   }
 
   return (
