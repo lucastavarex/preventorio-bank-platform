@@ -2,7 +2,6 @@
 
 import { useAuth, useUser } from '@clerk/nextjs'
 import {
-  BringToFrontIcon,
   Building2Icon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
@@ -23,6 +22,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { ActiveLayersList } from '@/components/geoportal/active-layers-list'
 import { BasemapToggle } from '@/components/geoportal/basemap-toggle'
 import {
   filterLayersWithLegend,
@@ -58,6 +58,7 @@ import {
 import { CLERK_ORG_ROLES } from '@/lib/roles'
 import { ROUTES, SITE_NAME } from '@/lib/site'
 import type { Group, Layer, LayerStyle } from '@/lib/supabase/types'
+import { cn } from '@/lib/utils'
 
 type GroupWithLayers = Group & { layers: Layer[] }
 
@@ -79,7 +80,7 @@ type GeoportalSidebarProps = {
   onToggleLayer: (layer: Layer) => void
   onLayerNameClick: (layer: Layer) => void
   onDownloadLayer: (layer: Layer) => void
-  onBringToFront: (layerId: string) => void
+  onReorderLayers: (nextOrder: string[]) => void
   onOpacityChange: (layerId: string, value: number) => void
   hiddenClasses: Record<string, Set<number>>
   onToggleClass: (layerId: string, classIndex: number) => void
@@ -100,7 +101,7 @@ export function GeoportalSidebar({
   onToggleLayer,
   onLayerNameClick,
   onDownloadLayer,
-  onBringToFront,
+  onReorderLayers,
   onOpacityChange,
   hiddenClasses,
   onToggleClass,
@@ -320,10 +321,11 @@ export function GeoportalSidebar({
                     Nenhuma camada ativada.
                   </p>
                 ) : (
-                  <div className="flex flex-col gap-2">
-                    {activeLayers.map(layer => (
+                  <ActiveLayersList
+                    layers={activeLayers}
+                    onReorder={onReorderLayers}
+                    renderItem={(layer, dragHandle) => (
                       <LayerRow
-                        key={layer.id}
                         layer={layer}
                         isVisible
                         isLoading={loadingLayers.has(layer.id)}
@@ -331,20 +333,15 @@ export function GeoportalSidebar({
                         opacity={
                           layerOpacity[layer.id] ?? defaultOpacity(layer.style)
                         }
-                        isTop={
-                          layerOrder.length > 0 &&
-                          layerOrder[layerOrder.length - 1] === layer.id
-                        }
-                        layerCount={layerOrder.length}
+                        dragHandle={dragHandle}
                         onToggle={onToggleLayer}
                         onNameClick={onLayerNameClick}
                         onDownload={onDownloadLayer}
-                        onBringToFront={onBringToFront}
                         onOpacityChange={onOpacityChange}
                         isAdmin={isAdmin}
                       />
-                    ))}
-                  </div>
+                    )}
+                  />
                 )}
               </AccordionContent>
             </AccordionItem>
@@ -425,15 +422,9 @@ export function GeoportalSidebar({
                               layerOpacity[layer.id] ??
                               defaultOpacity(layer.style)
                             }
-                            isTop={
-                              layerOrder.length > 0 &&
-                              layerOrder[layerOrder.length - 1] === layer.id
-                            }
-                            layerCount={layerOrder.length}
                             onToggle={onToggleLayer}
                             onNameClick={onLayerNameClick}
                             onDownload={onDownloadLayer}
-                            onBringToFront={onBringToFront}
                             onOpacityChange={onOpacityChange}
                             isAdmin={isAdmin}
                           />
@@ -491,12 +482,10 @@ function LayerRow({
   isLoading,
   error,
   opacity,
-  isTop,
-  layerCount,
+  dragHandle,
   onToggle,
   onNameClick,
   onDownload,
-  onBringToFront,
   onOpacityChange,
   isAdmin,
 }: {
@@ -505,12 +494,10 @@ function LayerRow({
   isLoading: boolean
   error?: string
   opacity: number
-  isTop: boolean
-  layerCount: number
+  dragHandle?: ReactNode
   onToggle: (layer: Layer) => void
   onNameClick: (layer: Layer) => void
   onDownload: (layer: Layer) => void
-  onBringToFront: (layerId: string) => void
   onOpacityChange: (layerId: string, value: number) => void
   isAdmin: boolean
 }) {
@@ -519,6 +506,7 @@ function LayerRow({
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
+        {dragHandle}
         {isLoading ? (
           <Spinner className="size-3.5" />
         ) : (
@@ -580,7 +568,12 @@ function LayerRow({
       </div>
 
       {isVisible && (
-        <div className="flex items-center gap-1.5 pl-8">
+        <div
+          className={cn(
+            'flex items-center gap-1.5',
+            dragHandle ? 'pl-16' : 'pl-8'
+          )}
+        >
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <Slider
               min={0}
@@ -597,17 +590,6 @@ function LayerRow({
               {Math.round(opacity * 100)}%
             </span>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={isTop || layerCount < 2}
-            onClick={() => onBringToFront(layer.id)}
-            title="Trazer para frente"
-            aria-label={`Trazer ${layer.title} para frente`}
-          >
-            <BringToFrontIcon />
-          </Button>
         </div>
       )}
     </div>

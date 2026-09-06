@@ -212,11 +212,8 @@ export function GeoportalClient() {
     [enableLayer, disableLayer]
   )
 
-  const bringLayerToFront = useCallback((layerId: string) => {
-    setLayerOrder(prev => {
-      if (!prev.includes(layerId)) return prev
-      return [...prev.filter(id => id !== layerId), layerId]
-    })
+  const reorderLayers = useCallback((nextOrder: string[]) => {
+    setLayerOrder(nextOrder)
   }, [])
 
   const setLayerOpacityValue = useCallback((layerId: string, value: number) => {
@@ -449,7 +446,7 @@ export function GeoportalClient() {
           onToggleLayer={toggleLayer}
           onLayerNameClick={onLayerNameClick}
           onDownloadLayer={downloadLayer}
-          onBringToFront={bringLayerToFront}
+          onReorderLayers={reorderLayers}
           onOpacityChange={setLayerOpacityValue}
           hiddenClasses={hiddenClasses}
           onToggleClass={toggleClass}
