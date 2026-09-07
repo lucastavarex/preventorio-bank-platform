@@ -204,13 +204,15 @@ export function MapForm({ layers, defaultValues, draft }: MapFormProps) {
         <div className="flex flex-col gap-2 rounded-lg border p-3">
           {layers.map(layer => {
             const checked = selected.some(item => item.id === layer.id)
+            const inputId = `map-layer-${layer.id}`
             return (
               <Field key={layer.id} orientation="horizontal">
                 <Checkbox
+                  id={inputId}
                   checked={checked}
                   onCheckedChange={next => toggleLayer(layer.id, next === true)}
                 />
-                <FieldLabel className="min-w-0">
+                <FieldLabel htmlFor={inputId} className="min-w-0 w-auto flex-1">
                   <span className="truncate">{layer.title}</span>
                   {layer.groups?.title ? (
                     <span className="text-muted-foreground">
