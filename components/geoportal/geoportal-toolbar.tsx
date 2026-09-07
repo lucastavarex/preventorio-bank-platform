@@ -30,6 +30,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { CLERK_ORG_ROLES } from '@/lib/roles'
+import { cn } from '@/lib/utils'
 
 type GeoportalToolbarProps = {
   getMap: () => maplibregl.Map | undefined
@@ -41,6 +42,7 @@ type GeoportalToolbarProps = {
   onExitCompare: () => void
   onExportPng: () => void
   saveMapHref: string
+  hidden?: boolean
 }
 
 export function GeoportalToolbar({
@@ -53,6 +55,7 @@ export function GeoportalToolbar({
   onExitCompare,
   onExportPng,
   saveMapHref,
+  hidden,
 }: GeoportalToolbarProps) {
   const { has, isLoaded } = useAuth()
   const isAdmin = isLoaded && (has?.({ role: CLERK_ORG_ROLES.admin }) ?? false)
@@ -107,7 +110,12 @@ export function GeoportalToolbar({
   }, [getMap])
 
   return (
-    <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5 rounded-full bg-background/80 px-2 py-4 shadow-md backdrop-blur-sm">
+    <div
+      className={cn(
+        'absolute top-4 right-4 z-20 flex flex-col gap-1.5 rounded-full bg-background/80 px-2 py-4 shadow-md backdrop-blur-sm transition-opacity duration-200',
+        hidden && 'max-md:pointer-events-none max-md:opacity-0'
+      )}
+    >
       <ToolbarButton title="Aproximar" onClick={zoomIn}>
         <PlusIcon />
       </ToolbarButton>

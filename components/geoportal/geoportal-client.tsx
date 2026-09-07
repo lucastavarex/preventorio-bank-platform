@@ -639,6 +639,7 @@ export function GeoportalClient({
         <GeoportalToolbar
           getMap={getMap}
           fullscreenTargetRef={rootRef}
+          hidden={sidebarOpen}
           onOpenSidebar={() => setSidebarOpen(true)}
           canCompare={canCompare}
           compareMode={compareMode}

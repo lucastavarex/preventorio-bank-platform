@@ -171,6 +171,18 @@ export function GeoportalSidebar({
     setQuery('')
   }
 
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      onOpenChange(false)
+      setAccordionValue([])
+      setQuery('')
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onOpenChange, open])
+
   const openPanel = (section?: string) => {
     onOpenChange(true)
     if (section === 'search') {
@@ -208,11 +220,24 @@ export function GeoportalSidebar({
 
   return (
     <>
+      <button
+        type="button"
+        tabIndex={open ? 0 : -1}
+        aria-hidden={!open}
+        aria-label="Recolher menu"
+        className={cn(
+          'absolute inset-0 z-30 bg-black/40 backdrop-blur-md transition-opacity duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0 md:hidden',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0'
+        )}
+        onClick={closePanel}
+      />
       <aside
         className={cn(
-          'absolute inset-y-0 left-0 z-20 overflow-hidden border-r bg-background/95 backdrop-blur-sm',
+          'absolute inset-y-0 left-0 overflow-hidden border-r bg-background/95 backdrop-blur-sm',
           'transition-[width,max-width,box-shadow] duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0',
-          open ? 'w-80 max-w-[calc(100vw-1rem)] shadow-lg' : 'w-12 shadow-md'
+          open
+            ? 'z-40 w-80 max-w-[calc(100vw-1rem)] shadow-lg'
+            : 'z-20 w-12 shadow-md'
         )}
       >
         <div
