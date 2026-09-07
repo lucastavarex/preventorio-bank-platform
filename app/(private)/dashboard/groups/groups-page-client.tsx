@@ -36,15 +36,15 @@ export function GroupsPageClient() {
   const groups = groupsQuery.data
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="font-bold text-2xl">Grupos</h1>
           <p className="text-muted-foreground text-sm">
             Gerencie os grupos de layers do geoportal.
           </p>
         </div>
-        <Button asChild>
+        <Button asChild className="w-fit sm:shrink-0">
           <Link href="/dashboard/groups/new">
             <PlusIcon data-icon="inline-start" />
             Novo grupo

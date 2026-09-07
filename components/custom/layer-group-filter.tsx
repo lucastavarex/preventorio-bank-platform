@@ -43,7 +43,11 @@ export function LayerGroupFilter({
       onValueChange={handleValueChange}
       disabled={groups.length === 0 || isPending}
     >
-      <SelectTrigger id="layer-group-filter" aria-label="Filtrar por grupo">
+      <SelectTrigger
+        id="layer-group-filter"
+        aria-label="Filtrar por grupo"
+        className="max-w-full min-w-0"
+      >
         <SelectValue placeholder="Todos os grupos" />
       </SelectTrigger>
       <SelectContent>

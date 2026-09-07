@@ -36,15 +36,15 @@ export function LayersPageClient({ groupId }: { groupId?: string }) {
   const groups = groupsQuery.data
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="font-bold text-2xl">Layers</h1>
           <p className="text-muted-foreground text-sm">
             Gerencie os layers do geoportal.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
           {groups.length > 0 && (
             <LayerGroupFilter groups={groups} selectedGroupId={groupId} />
           )}
