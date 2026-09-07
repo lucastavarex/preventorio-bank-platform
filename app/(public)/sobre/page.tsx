@@ -38,7 +38,7 @@ export default function SobrePage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-12 pb-8">
       <section className="flex flex-col gap-5">
-        <Badge variant="secondary">Trabalho de conclusão de curso</Badge>
+        {/* <Badge variant="secondary">Trabalho de conclusão de curso</Badge> */}
         <div className="flex flex-col gap-3">
           <h1 className="font-bold text-3xl tracking-tight md:text-4xl">
             {SITE_NAME}
