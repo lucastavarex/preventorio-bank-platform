@@ -40,7 +40,11 @@ type PopupInfo = {
 
 const BASEMAP_STORAGE_KEY = 'geoportal-basemap'
 
-export function GeoportalClient() {
+export function GeoportalClient({
+  initialLayerId,
+}: {
+  initialLayerId?: string
+}) {
   const storageBaseUrl = getGeojsonStorageBaseUrl()
   const queryClient = useQueryClient()
   const groupsQuery = useGroupsWithLayers()
@@ -240,6 +244,34 @@ export function GeoportalClient() {
     },
     [enableLayer, zoomToLayer]
   )
+
+  const focusedLayerRef = useRef(false)
+
+  useEffect(() => {
+    if (!initialLayerId || focusedLayerRef.current) return
+
+    const layer = layersById.get(initialLayerId)
+    if (!layer) return
+
+    enableLayer(layer)
+
+    let cancelled = false
+    const tryFocus = () => {
+      if (cancelled || focusedLayerRef.current) return
+      const map = mapRef.current?.getMap()
+      if (!map) {
+        requestAnimationFrame(tryFocus)
+        return
+      }
+      zoomToLayer(layer)
+      focusedLayerRef.current = true
+    }
+    tryFocus()
+
+    return () => {
+      cancelled = true
+    }
+  }, [enableLayer, initialLayerId, layersById, zoomToLayer])
 
   const downloadLayer = useCallback(
     async (layer: Layer) => {

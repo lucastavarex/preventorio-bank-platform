@@ -96,7 +96,7 @@ export function GeoportalToolbar({
   }, [getMap])
 
   return (
-    <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5">
+    <div className="absolute top-4 bg-background/80 backdrop-blur-sm rounded-full px-2 py-4 shadow-md right-4 z-20 flex flex-col gap-1.5">
       <ToolbarButton title="Aproximar" onClick={zoomIn}>
         <PlusIcon />
       </ToolbarButton>
@@ -148,7 +148,6 @@ function ToolbarButton({
       <TooltipTrigger asChild>
         <Button
           type="button"
-          variant="secondary"
           size="icon"
           className="rounded-full shadow-md"
           disabled={disabled}

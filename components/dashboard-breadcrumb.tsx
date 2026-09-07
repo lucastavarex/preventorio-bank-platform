@@ -12,10 +12,10 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
 
-const nonClickable = new Set(['dashboard', 'geoportal'])
+const nonClickable = new Set(['geoportal'])
 
 const labels: Record<string, string> = {
-  dashboard: 'Dashboard',
+  dashboard: 'Início',
   geoportal: 'Geoportal',
   conta: 'Conta',
   'gerenciar-mapas': 'Gerenciar mapas',

@@ -43,10 +43,28 @@ export function NavMain({ items }: { items: NavItem[] }) {
       <SidebarGroupLabel>Plataforma</SidebarGroupLabel>
       <SidebarMenu>
         {items.map(item => {
-          const isParentActive =
-            item.items?.some(
-              sub => pathname === sub.url || pathname.startsWith(`${sub.url}/`)
-            ) ?? false
+          if (!item.items?.length) {
+            const isActive = pathname === item.url
+
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  tooltip={item.title}
+                  isActive={isActive}
+                  asChild
+                >
+                  <Link href={item.url}>
+                    {item.icon}
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          }
+
+          const isParentActive = item.items.some(
+            sub => pathname === sub.url || pathname.startsWith(`${sub.url}/`)
+          )
 
           return (
             <Collapsible

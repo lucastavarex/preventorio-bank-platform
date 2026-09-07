@@ -18,6 +18,7 @@ import type {
 } from '@/lib/supabase/types'
 
 function revalidateLayerPages() {
+  revalidatePath('/dashboard')
   revalidatePath('/dashboard/layers')
   revalidatePath('/dashboard/groups', 'layout')
   revalidatePath('/geoportal')

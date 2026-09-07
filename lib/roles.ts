@@ -2,6 +2,11 @@ export const ROLES = ['admin', 'member'] as const
 export type Role = (typeof ROLES)[number]
 export const DEFAULT_ROLE: Role = 'member'
 
+export const ROLE_LABELS: Record<Role, string> = {
+  admin: 'Administrador',
+  member: 'Membro',
+}
+
 export const CLERK_ORG_ROLES = {
   admin: 'org:admin',
   member: 'org:member',

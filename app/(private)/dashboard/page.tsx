@@ -1,12 +1,20 @@
-export default function DashboardPage() {
-  return (
-    <>
-      <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-        <div className="aspect-video rounded-xl bg-muted/50" />
-        <div className="aspect-video rounded-xl bg-muted/50" />
-        <div className="aspect-video rounded-xl bg-muted/50" />
-      </div>
-      <div className="min-h-screen flex-1 rounded-xl bg-muted/50 md:min-h-min" />
-    </>
-  )
+import { auth, currentUser } from '@clerk/nextjs/server'
+import { redirect } from 'next/navigation'
+import { DashboardHome } from '@/components/dashboard/dashboard-home'
+import { getDashboardOverview } from '@/lib/actions/dashboard'
+import { DEFAULT_ROLE, parseRole } from '@/lib/roles'
+
+export default async function DashboardPage() {
+  const user = await currentUser()
+
+  if (!user) {
+    redirect('/sign-in')
+  }
+
+  const { orgRole } = await auth()
+  const role = parseRole(orgRole) ?? DEFAULT_ROLE
+  const name = user.fullName || user.firstName || 'Usuário'
+  const overview = await getDashboardOverview()
+
+  return <DashboardHome name={name} role={role} overview={overview} />
 }

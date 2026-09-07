@@ -8,12 +8,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DEFAULT_ROLE, parseRole, type Role } from '@/lib/roles'
-
-const ROLE_LABELS: Record<Role, string> = {
-  admin: 'Administrador',
-  member: 'Membro',
-}
+import { DEFAULT_ROLE, parseRole, ROLE_LABELS } from '@/lib/roles'
 
 function getInitials(name: string, email: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)

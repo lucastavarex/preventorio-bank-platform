@@ -45,8 +45,13 @@ export const ARTICLE = {
 } as const
 
 export const ROUTES = {
+  dashboard: '/dashboard',
   geoportal: '/geoportal',
   sobre: '/sobre',
   origem: '/sobre#origem',
   artigo: '/dashboard/artigo',
 } as const
+
+export function geoportalLayerPath(layerId: string) {
+  return `${ROUTES.geoportal}?layer=${encodeURIComponent(layerId)}`
+}

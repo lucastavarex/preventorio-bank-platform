@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from '@clerk/nextjs'
-import { BookOpenIcon, FolderIcon, MapIcon } from 'lucide-react'
+import { BookOpenIcon, FolderIcon, HouseIcon, MapIcon } from 'lucide-react'
 import type * as React from 'react'
 import { BrandMark } from '@/components/brand-mark'
 import { type NavItem, NavMain } from '@/components/nav-main'
@@ -25,6 +25,11 @@ const data: {
   projects: { name: string; url: string }[]
 } = {
   navMain: [
+    {
+      title: 'Início',
+      url: ROUTES.dashboard,
+      icon: <HouseIcon />,
+    },
     {
       title: 'Geoportal',
       url: '#',

@@ -7,6 +7,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import type { GroupInsert, GroupUpdate } from '@/lib/supabase/types'
 
 function revalidateGroupPages() {
+  revalidatePath('/dashboard')
   revalidatePath('/dashboard/groups')
   revalidatePath('/dashboard/layers')
   revalidatePath('/geoportal')
