@@ -1,7 +1,10 @@
 import type { ExpressionSpecification, FilterSpecification } from 'maplibre-gl'
 import type {
+  CategoricalClass,
+  CategoricalClassify,
   ClassifyClass,
   GraduatedClassify,
+  LayerClassify,
   LayerStyle,
   LegendConfig,
 } from '@/lib/supabase/types'
@@ -187,18 +190,40 @@ export function sampleRamp(stops: string[], count: number): string[] {
   })
 }
 
-export function recolorClasses(
-  classes: ClassifyClass[],
+export function recolorClasses<T extends { color: string }>(
+  classes: T[],
   paletteId: string
-): ClassifyClass[] {
+): T[] {
   const colors = sampleRamp(getPalette(paletteId).stops, classes.length)
   return classes.map((cls, i) => ({ ...cls, color: colors[i] }))
+}
+
+export function hasCategoricalClassify(
+  style: LayerStyle | undefined
+): style is LayerStyle & { classify: CategoricalClassify } {
+  return (
+    style?.classify?.mode === 'categorical' &&
+    Boolean(style.classify.property) &&
+    style.classify.classes.length > 0
+  )
 }
 
 export function hasGraduatedClassify(
   style: LayerStyle | undefined
 ): style is LayerStyle & { classify: GraduatedClassify } {
-  return Boolean(style?.classify?.property && style.classify.classes.length > 0)
+  const classify = style?.classify
+  return Boolean(
+    classify &&
+      classify.mode !== 'categorical' &&
+      classify.property &&
+      classify.classes.length > 0
+  )
+}
+
+export function hasClassify(
+  style: LayerStyle | undefined
+): style is LayerStyle & { classify: LayerClassify } {
+  return hasGraduatedClassify(style) || hasCategoricalClassify(style)
 }
 
 export function numericFieldNames(
@@ -222,6 +247,56 @@ export function numericFieldNames(
     .filter(([, count]) => count > 0)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key]) => key)
+}
+
+export function propertyFieldNames(
+  data: GeoJSON.FeatureCollection | null
+): string[] {
+  if (!data || data.features.length === 0) return []
+
+  const keys = new Set<string>()
+  const sample = data.features.slice(0, 200)
+
+  for (const feature of sample) {
+    for (const key of Object.keys(feature.properties ?? {})) {
+      if (key) keys.add(key)
+    }
+  }
+
+  return [...keys].sort((a, b) => a.localeCompare(b))
+}
+
+export function uniquePropertyValues(
+  data: GeoJSON.FeatureCollection,
+  property: string,
+  limit = 24
+): string[] {
+  const values = new Set<string>()
+
+  for (const feature of data.features) {
+    const value = feature.properties?.[property]
+    if (value == null || value === '') continue
+    values.add(String(value))
+    if (values.size >= limit) break
+  }
+
+  return [...values].sort((a, b) => a.localeCompare(b, 'pt'))
+}
+
+export function categoricalClasses(
+  values: string[],
+  paletteId = DEFAULT_PALETTE_ID
+): CategoricalClass[] {
+  const colors = sampleRamp(
+    getPalette(paletteId).stops,
+    Math.max(values.length, 1)
+  )
+  return values.map((value, i) => ({
+    value,
+    color: colors[i],
+    label: value,
+    visible: true,
+  }))
 }
 
 export function fieldExtent(
@@ -297,7 +372,7 @@ function roundBreak(value: number): number {
 }
 
 export function legendFromClassify(
-  classify: GraduatedClassify | undefined,
+  classify: LayerClassify | undefined,
   type: LayerStyle['type']
 ): LegendConfig {
   if (!classify?.classes.length) return { items: [] }
@@ -326,11 +401,27 @@ function classCondition(
   return ['all', ['>=', value, cls.min], ['<', value, cls.max]]
 }
 
+function categoricalPropertyExpr(property: string): ExpressionSpecification {
+  return ['to-string', ['coalesce', ['get', property], '']]
+}
+
 export function classifyColorExpression(
-  classify: GraduatedClassify,
+  classify: LayerClassify,
   fallback: string
 ): ExpressionSpecification | string {
   if (classify.classes.length === 0) return fallback
+
+  if (classify.mode === 'categorical') {
+    const expr: unknown[] = [
+      'match',
+      categoricalPropertyExpr(classify.property),
+    ]
+    for (const cls of classify.classes) {
+      expr.push(cls.value, cls.color)
+    }
+    expr.push(fallback)
+    return expr as ExpressionSpecification
+  }
 
   const expr: unknown[] = ['case']
   classify.classes.forEach((cls, i) => {
@@ -344,32 +435,38 @@ export function classifyColorExpression(
 }
 
 export function classifyFilter(
-  classify: GraduatedClassify
+  classify: LayerClassify
 ): FilterSpecification | undefined {
-  const visible = classify.classes
+  if (classify.mode === 'categorical') {
+    const visible = classify.classes.filter(cls => cls.visible !== false)
+    if (visible.length === 0) return ['==', 1, 0]
+    if (visible.length === classify.classes.length) return undefined
+    return [
+      'in',
+      categoricalPropertyExpr(classify.property),
+      ['literal', visible.map(cls => cls.value)],
+    ] as FilterSpecification
+  }
+
+  const visibleGraduated = classify.classes
     .map((cls, i) => ({ cls, i }))
     .filter(({ cls }) => cls.visible !== false)
 
-  if (visible.length === 0) {
-    return ['==', 1, 0]
-  }
-
-  if (visible.length === classify.classes.length) {
-    return undefined
-  }
+  if (visibleGraduated.length === 0) return ['==', 1, 0]
+  if (visibleGraduated.length === classify.classes.length) return undefined
 
   return [
     'any',
-    ...visible.map(({ cls, i }) =>
+    ...visibleGraduated.map(({ cls, i }) =>
       classCondition(classify.property, cls, i === classify.classes.length - 1)
     ),
   ] as FilterSpecification
 }
 
-export function applyHiddenClasses(
-  classify: GraduatedClassify,
+export function applyHiddenClasses<T extends LayerClassify>(
+  classify: T,
   hiddenIndexes?: Set<number>
-): GraduatedClassify {
+): T {
   if (!hiddenIndexes) return classify
   return {
     ...classify,

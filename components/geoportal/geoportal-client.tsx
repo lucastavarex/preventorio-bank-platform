@@ -4,6 +4,7 @@ import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type MapLayerMouseEvent, Popup } from 'react-map-gl/maplibre'
 import { toast } from 'sonner'
+import { FeaturePopup } from '@/components/geoportal/feature-popup'
 import { GeoportalSidebar } from '@/components/geoportal/geoportal-sidebar'
 import { GeoportalToolbar } from '@/components/geoportal/geoportal-toolbar'
 import {
@@ -25,9 +26,15 @@ import { GeoJSONLayer } from '@/components/map/geojson-layer'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { fetchGeojson } from '@/hooks/use-geojson'
 import { useGroupsWithLayers } from '@/hooks/use-layers'
-import { hasGraduatedClassify } from '@/lib/classify'
+import { useMapForViewer } from '@/hooks/use-maps'
+import { hasClassify } from '@/lib/classify'
+import {
+  compositionFromSavedMap,
+  type GeoportalShareState,
+  replaceGeoportalUrl,
+  savedMapNewPath,
+} from '@/lib/geoportal-url'
 import { queryKeys } from '@/lib/query/keys'
-import { getGeojsonStorageBaseUrl } from '@/lib/storage'
 import type { Group, Layer, LayerStyle } from '@/lib/supabase/types'
 
 type GroupWithLayers = Group & { layers: Layer[] }
@@ -35,45 +42,66 @@ type GroupWithLayers = Group & { layers: Layer[] }
 type PopupInfo = {
   lng: number
   lat: number
+  layerId: string
   properties: Record<string, unknown>
 }
 
 const BASEMAP_STORAGE_KEY = 'geoportal-basemap'
 
 export function GeoportalClient({
+  initialMapId,
   initialLayerId,
+  initialLayerIds,
+  initialOpacities,
+  initialBasemapId,
+  initialCamera,
 }: {
+  initialMapId?: string
   initialLayerId?: string
+  initialLayerIds?: string[]
+  initialOpacities?: number[]
+  initialBasemapId?: BasemapId
+  initialCamera?: MapCamera
 }) {
-  const storageBaseUrl = getGeojsonStorageBaseUrl()
   const queryClient = useQueryClient()
   const groupsQuery = useGroupsWithLayers()
   const groupsWithLayers = groupsQuery.data ?? []
+  const savedMapQuery = useMapForViewer(initialMapId)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<BaseMapHandle>(null)
   const compareRef = useRef<LayerCompareHandle>(null)
+  const appliedViewRef = useRef(false)
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [basemapId, setBasemapId] = useState<BasemapId>(DEFAULT_BASEMAP_ID)
-  const [mapCamera, setMapCamera] = useState<MapCamera | null>(null)
+  const [basemapId, setBasemapId] = useState<BasemapId>(
+    initialBasemapId ?? DEFAULT_BASEMAP_ID
+  )
+  const [mapCamera, setMapCamera] = useState<MapCamera | null>(
+    initialCamera ?? null
+  )
   const [compareMode, setCompareMode] = useState(false)
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
     () => new Set()
   )
-  /** Bottom → top stack of visible layer ids. */
   const [layerOrder, setLayerOrder] = useState<string[]>([])
   const [layerOpacity, setLayerOpacity] = useState<Record<string, number>>({})
   const [popup, setPopup] = useState<PopupInfo | null>(null)
   const [hiddenClasses, setHiddenClasses] = useState<
     Record<string, Set<number>>
   >({})
+  const [activeMapId, setActiveMapId] = useState<string | undefined>(
+    initialMapId
+  )
+  const [factLayerId, setFactLayerId] = useState<string | null>(null)
+  const [shareRevision, setShareRevision] = useState(0)
 
   useEffect(() => {
+    if (initialBasemapId) return
     setBasemapId(
       parseBasemapId(window.localStorage.getItem(BASEMAP_STORAGE_KEY))
     )
-  }, [])
+  }, [initialBasemapId])
 
   useEffect(() => {
     if (groupsQuery.isError) {
@@ -105,6 +133,7 @@ export function GeoportalClient({
     if (camera) setMapCamera(camera)
     setBasemapId(id)
     window.localStorage.setItem(BASEMAP_STORAGE_KEY, id)
+    setActiveMapId(undefined)
   }, [])
 
   const layersById = useMemo(() => {
@@ -128,8 +157,8 @@ export function GeoportalClient({
 
   const geojsonQueries = useQueries({
     queries: visibleLayerList.map(layer => ({
-      queryKey: queryKeys.geojson.byPath(layer.geojson_storage_path ?? ''),
-      queryFn: () => fetchGeojson(storageBaseUrl, layer.geojson_storage_path!),
+      queryKey: queryKeys.geojson.byLayer(layer.id),
+      queryFn: () => fetchGeojson(layer.id),
       staleTime: Number.POSITIVE_INFINITY,
     })),
   })
@@ -164,7 +193,7 @@ export function GeoportalClient({
   const toggleClass = useCallback(
     (layerId: string, classIndex: number) => {
       const layer = layersById.get(layerId)
-      if (!layer || !hasGraduatedClassify(layer.style)) return
+      if (!layer || !hasClassify(layer.style)) return
       const classes = layer.style.classify.classes
 
       setHiddenClasses(prev => {
@@ -183,17 +212,15 @@ export function GeoportalClient({
   const visibleLayersRef = useRef(visibleLayers)
   visibleLayersRef.current = visibleLayers
 
-  const enableLayer = useCallback((layer: Layer) => {
-    if (visibleLayersRef.current.has(layer.id)) return
-
+  const enableLayer = useCallback((layer: Layer, opacity?: number) => {
     setVisibleLayers(prev => new Set(prev).add(layer.id))
     setLayerOrder(prev =>
       prev.includes(layer.id) ? prev : [...prev, layer.id]
     )
     setLayerOpacity(prev =>
-      layer.id in prev
+      layer.id in prev && opacity == null
         ? prev
-        : { ...prev, [layer.id]: defaultOpacity(layer.style) }
+        : { ...prev, [layer.id]: opacity ?? defaultOpacity(layer.style) }
     )
   }, [])
 
@@ -206,22 +233,28 @@ export function GeoportalClient({
       return next
     })
     setLayerOrder(prev => prev.filter(id => id !== layer.id))
+    setActiveMapId(undefined)
   }, [])
 
   const toggleLayer = useCallback(
     (layer: Layer) => {
       if (visibleLayersRef.current.has(layer.id)) disableLayer(layer)
-      else enableLayer(layer)
+      else {
+        enableLayer(layer)
+        setActiveMapId(undefined)
+      }
     },
     [enableLayer, disableLayer]
   )
 
   const reorderLayers = useCallback((nextOrder: string[]) => {
     setLayerOrder(nextOrder)
+    setActiveMapId(undefined)
   }, [])
 
   const setLayerOpacityValue = useCallback((layerId: string, value: number) => {
     setLayerOpacity(prev => ({ ...prev, [layerId]: value }))
+    setActiveMapId(undefined)
   }, [])
 
   const zoomToLayer = useCallback((layer: Layer) => {
@@ -245,33 +278,138 @@ export function GeoportalClient({
     [enableLayer, zoomToLayer]
   )
 
-  const focusedLayerRef = useRef(false)
+  const applyShareState = useCallback(
+    (state: GeoportalShareState) => {
+      const nextVisible = new Set<string>()
+      const nextOrder: string[] = []
+      const nextOpacity: Record<string, number> = {}
+
+      for (const id of state.layerIds) {
+        const layer = layersById.get(id)
+        if (!layer) continue
+        nextVisible.add(id)
+        nextOrder.push(id)
+        nextOpacity[id] = state.opacities[id] ?? defaultOpacity(layer.style)
+      }
+
+      setVisibleLayers(nextVisible)
+      setLayerOrder(nextOrder)
+      setLayerOpacity(nextOpacity)
+      setBasemapId(state.basemapId)
+      if (state.camera) {
+        setMapCamera({
+          ...state.camera,
+          bearing: 0,
+          pitch: 0,
+        })
+      }
+    },
+    [layersById]
+  )
 
   useEffect(() => {
-    if (!initialLayerId || focusedLayerRef.current) return
+    if (appliedViewRef.current || layersById.size === 0) return
 
-    const layer = layersById.get(initialLayerId)
-    if (!layer) return
-
-    enableLayer(layer)
-
-    let cancelled = false
-    const tryFocus = () => {
-      if (cancelled || focusedLayerRef.current) return
-      const map = mapRef.current?.getMap()
-      if (!map) {
-        requestAnimationFrame(tryFocus)
+    if (initialMapId) {
+      if (savedMapQuery.isPending) return
+      if (savedMapQuery.data) {
+        applyShareState(compositionFromSavedMap(savedMapQuery.data))
+        setActiveMapId(savedMapQuery.data.id)
+        appliedViewRef.current = true
         return
       }
-      zoomToLayer(layer)
-      focusedLayerRef.current = true
     }
-    tryFocus()
 
-    return () => {
-      cancelled = true
+    if (initialLayerIds?.length) {
+      const opacities: Record<string, number> = {}
+      initialLayerIds.forEach((id, index) => {
+        const pct = initialOpacities?.[index]
+        if (pct != null) opacities[id] = pct / 100
+      })
+      applyShareState({
+        layerIds: initialLayerIds,
+        opacities,
+        basemapId: initialBasemapId ?? basemapId,
+        camera: initialCamera,
+      })
+      appliedViewRef.current = true
+      return
     }
-  }, [enableLayer, initialLayerId, layersById, zoomToLayer])
+
+    if (initialLayerId) {
+      const layer = layersById.get(initialLayerId)
+      if (layer) {
+        enableLayer(layer)
+        const tryFocus = () => {
+          const map = mapRef.current?.getMap()
+          if (!map) {
+            requestAnimationFrame(tryFocus)
+            return
+          }
+          zoomToLayer(layer)
+        }
+        tryFocus()
+      }
+    }
+
+    appliedViewRef.current = true
+  }, [
+    applyShareState,
+    basemapId,
+    enableLayer,
+    initialBasemapId,
+    initialCamera,
+    initialLayerId,
+    initialLayerIds,
+    initialMapId,
+    initialOpacities,
+    layersById,
+    savedMapQuery.data,
+    savedMapQuery.isPending,
+    zoomToLayer,
+  ])
+
+  useEffect(() => {
+    if (!appliedViewRef.current) return
+    const ids = layerOrder.filter(id => visibleLayers.has(id))
+    const saved = savedMapQuery.data
+    const matchesSaved =
+      Boolean(activeMapId) &&
+      saved != null &&
+      saved.id === activeMapId &&
+      saved.layers.length === ids.length &&
+      saved.layers.every((layer, index) => layer.id === ids[index]) &&
+      parseBasemapId(saved.basemap_id) === basemapId
+
+    const liveCamera =
+      shareRevision >= 0
+        ? ((compareMode
+            ? compareRef.current?.getCamera()
+            : mapRef.current?.getCamera()) ?? mapCamera)
+        : mapCamera
+
+    const timer = window.setTimeout(() => {
+      replaceGeoportalUrl({
+        mapId: matchesSaved ? activeMapId : undefined,
+        layerIds: ids,
+        opacities: layerOpacity,
+        basemapId,
+        camera: liveCamera ?? undefined,
+      })
+    }, 400)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    activeMapId,
+    basemapId,
+    compareMode,
+    layerOpacity,
+    layerOrder,
+    mapCamera,
+    savedMapQuery.data,
+    shareRevision,
+    visibleLayers,
+  ])
 
   const downloadLayer = useCallback(
     async (layer: Layer) => {
@@ -282,16 +420,12 @@ export function GeoportalClient({
 
       try {
         const cached = queryClient.getQueryData<GeoJSON.FeatureCollection>(
-          queryKeys.geojson.byPath(layer.geojson_storage_path)
+          queryKeys.geojson.byLayer(layer.id)
         )
-        const blob = cached
-          ? new Blob([JSON.stringify(cached)], {
-              type: 'application/geo+json',
-            })
-          : await fetchLayerGeojsonBlob(
-              `${storageBaseUrl}/${layer.geojson_storage_path}`
-            )
-
+        const data = cached ?? (await fetchGeojson(layer.id))
+        const blob = new Blob([JSON.stringify(data)], {
+          type: 'application/geo+json',
+        })
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
@@ -304,7 +438,7 @@ export function GeoportalClient({
         toast.error('Falha ao baixar GeoJSON')
       }
     },
-    [queryClient, storageBaseUrl]
+    [queryClient]
   )
 
   const stackedVisibleLayers = useMemo(() => {
@@ -314,7 +448,6 @@ export function GeoportalClient({
       .filter(layer => visibleLayers.has(layer.id) && layerData[layer.id])
   }, [layerOrder, layersById, visibleLayers, layerData])
 
-  /** Bottom layer → left; top layer → right. */
   const comparePair = useMemo(() => {
     if (stackedVisibleLayers.length !== 2) return null
     const [leftLayer, rightLayer] = stackedVisibleLayers
@@ -348,6 +481,32 @@ export function GeoportalClient({
     return mapRef.current?.getMap()
   }, [compareMode])
 
+  const exportPng = useCallback(() => {
+    const map = getMap()
+    if (!map) {
+      toast.error('O mapa ainda não carregou')
+      return
+    }
+    try {
+      const dataUrl = map.getCanvas().toDataURL('image/png')
+      const link = document.createElement('a')
+      link.href = dataUrl
+      link.download = `${geojsonFilename(savedMapQuery.data?.title ?? 'geoportal-preventorio').replace(/\.geojson$/, '')}.png`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch {
+      toast.error('Não foi possível exportar a imagem')
+    }
+  }, [getMap, savedMapQuery.data?.title])
+
+  const saveMapHref = savedMapNewPath({
+    layerIds: layerOrder.filter(id => visibleLayers.has(id)),
+    opacities: layerOpacity,
+    basemapId,
+    camera: mapRef.current?.getCamera() ?? mapCamera ?? undefined,
+  })
+
   const interactiveLayerIds = useMemo(
     () =>
       [...stackedVisibleLayers]
@@ -370,10 +529,13 @@ export function GeoportalClient({
       const features = map.queryRenderedFeatures(e.point, { layers: queryIds })
 
       if (features.length > 0) {
+        const feature = features[0]
+        const layerId = feature.layer.id.replace(/-outline$/, '')
         setPopup({
           lng: e.lngLat.lng,
           lat: e.lngLat.lat,
-          properties: (features[0].properties ?? {}) as Record<string, unknown>,
+          layerId,
+          properties: (feature.properties ?? {}) as Record<string, unknown>,
         })
       } else {
         setPopup(null)
@@ -381,6 +543,8 @@ export function GeoportalClient({
     },
     [interactiveLayerIds]
   )
+
+  const popupLayer = popup ? layersById.get(popup.layerId) : undefined
 
   return (
     <TooltipProvider>
@@ -407,10 +571,10 @@ export function GeoportalClient({
               mapStyle={getBasemapStyle(basemapId)}
               camera={mapCamera}
               onClick={handleMapClick}
+              onMoveEnd={() => setShareRevision(value => value + 1)}
               interactiveLayerIds={interactiveLayerIds}
               showControls={false}
             >
-              {/* Top-first so beforeId always points at an already-mounted layer. */}
               {[...stackedVisibleLayers]
                 .reverse()
                 .map((layer, index, stackTopFirst) => {
@@ -431,7 +595,7 @@ export function GeoportalClient({
                   )
                 })}
 
-              {popup && (
+              {popup && popupLayer && (
                 <Popup
                   longitude={popup.lng}
                   latitude={popup.lat}
@@ -439,24 +603,10 @@ export function GeoportalClient({
                   closeOnClick={false}
                   maxWidth="320px"
                 >
-                  <div className="max-h-48 overflow-auto text-xs">
-                    {Object.keys(popup.properties).length === 0 ? (
-                      <p className="text-muted-foreground">Sem atributos</p>
-                    ) : (
-                      <table className="w-full">
-                        <tbody>
-                          {Object.entries(popup.properties).map(
-                            ([key, val]) => (
-                              <tr key={key} className="border-b last:border-0">
-                                <td className="pr-2 font-medium">{key}</td>
-                                <td>{String(val ?? '')}</td>
-                              </tr>
-                            )
-                          )}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
+                  <FeaturePopup
+                    layer={popupLayer}
+                    properties={popup.properties}
+                  />
                 </Popup>
               )}
             </BaseMap>
@@ -482,6 +632,8 @@ export function GeoportalClient({
           onOpacityChange={setLayerOpacityValue}
           hiddenClasses={hiddenClasses}
           onToggleClass={toggleClass}
+          factLayerId={factLayerId}
+          onFactLayerIdChange={setFactLayerId}
         />
 
         <GeoportalToolbar
@@ -492,6 +644,8 @@ export function GeoportalClient({
           compareMode={compareMode}
           onEnterCompare={enterCompareMode}
           onExitCompare={() => exitCompareMode(compareRef.current?.getCamera())}
+          onExportPng={exportPng}
+          saveMapHref={saveMapHref}
         />
       </div>
     </TooltipProvider>
@@ -500,14 +654,6 @@ export function GeoportalClient({
 
 function defaultOpacity(style: LayerStyle) {
   return style.fillOpacity ?? style.strokeOpacity ?? style.circleOpacity ?? 1
-}
-
-async function fetchLayerGeojsonBlob(url: string) {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
-  return response.blob()
 }
 
 function geojsonFilename(title: string) {
@@ -524,7 +670,7 @@ function initialHiddenClasses(groups: GroupWithLayers[]) {
   const init: Record<string, Set<number>> = {}
   for (const group of groups) {
     for (const layer of group.layers) {
-      if (!hasGraduatedClassify(layer.style)) continue
+      if (!hasClassify(layer.style)) continue
       const hidden = new Set<number>()
       layer.style.classify.classes.forEach((cls, i) => {
         if (cls.visible === false) hidden.add(i)

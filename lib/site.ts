@@ -47,6 +47,7 @@ export const ARTICLE = {
 export const ROUTES = {
   dashboard: '/dashboard',
   geoportal: '/geoportal',
+  maps: '/dashboard/maps',
   sobre: '/sobre',
   origem: '/sobre#origem',
   artigo: '/dashboard/artigo',

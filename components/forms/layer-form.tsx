@@ -6,6 +6,8 @@ import { GeojsonDropzone } from '@/components/custom/geojson-dropzone'
 import { ClassifyEditor } from '@/components/forms/classify-editor'
 import { LayerPreview } from '@/components/forms/layer-preview'
 import { LegendEditor } from '@/components/forms/legend-editor'
+import { PopupEditor } from '@/components/forms/popup-editor'
+import { ProvenanceEditor } from '@/components/forms/provenance-editor'
 import { StyleEditor } from '@/components/forms/style-editor'
 import {
   AlertDialog,
@@ -38,12 +40,14 @@ import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { useGeojson } from '@/hooks/use-geojson'
 import { useCreateLayer, useUpdateLayer } from '@/hooks/use-layers'
-import { hasGraduatedClassify, legendFromClassify } from '@/lib/classify'
+import { hasClassify, legendFromClassify } from '@/lib/classify'
 import { computeBBox, parseFeatureCollection } from '@/lib/geojson'
 import { isNextRedirect } from '@/lib/next-redirect'
 import type {
   Group,
   Layer,
+  LayerPopupConfig,
+  LayerProvenance,
   LayerStyle,
   LegendConfig,
 } from '@/lib/supabase/types'
@@ -51,14 +55,12 @@ import type {
 type LayerFormProps = {
   groups: Group[]
   defaultValues?: Partial<Layer>
-  storageBaseUrl?: string
   geojsonRequired?: boolean
 }
 
 export function LayerForm({
   groups,
   defaultValues,
-  storageBaseUrl,
   geojsonRequired = false,
 }: LayerFormProps) {
   const [preview, setPreview] = useState<GeoJSON.FeatureCollection | null>(null)
@@ -69,6 +71,12 @@ export function LayerForm({
   const [legend, setLegend] = useState<LegendConfig>(
     defaultValues?.legend ?? {}
   )
+  const [provenance, setProvenance] = useState<LayerProvenance>(
+    defaultValues?.provenance ?? {}
+  )
+  const [popup, setPopup] = useState<LayerPopupConfig>(
+    defaultValues?.popup ?? {}
+  )
   const [groupId, setGroupId] = useState(defaultValues?.group_id ?? '')
   const [isPrivate, setIsPrivate] = useState(defaultValues?.is_private ?? false)
   const [fileError, setFileError] = useState<string | null>(null)
@@ -77,10 +85,7 @@ export function LayerForm({
   const createLayer = useCreateLayer()
   const updateLayer = useUpdateLayer(defaultValues?.id ?? '')
   const mutation = defaultValues?.id ? updateLayer : createLayer
-  const geojsonQuery = useGeojson(
-    defaultValues?.geojson_storage_path ?? undefined,
-    storageBaseUrl
-  )
+  const geojsonQuery = useGeojson(defaultValues?.id)
 
   useEffect(() => {
     if (!geojsonQuery.data || selectedFile) return
@@ -131,7 +136,7 @@ export function LayerForm({
 
   const handleStyleChange = useCallback((next: LayerStyle) => {
     setStyle(next)
-    if (hasGraduatedClassify(next)) {
+    if (hasClassify(next)) {
       setLegend(legendFromClassify(next.classify, next.type))
     }
   }, [])
@@ -139,11 +144,13 @@ export function LayerForm({
   const buildFormData = useCallback(
     (form: HTMLFormElement) => {
       const formData = new FormData(form)
-      const legendToSave = hasGraduatedClassify(style)
+      const legendToSave = hasClassify(style)
         ? legendFromClassify(style.classify, style.type)
         : legend
       formData.set('style', JSON.stringify(style))
       formData.set('legend', JSON.stringify(legendToSave))
+      formData.set('provenance', JSON.stringify(provenance))
+      formData.set('popup', JSON.stringify(popup))
       formData.set('group_id', groupId)
       formData.set('is_private', isPrivate ? 'on' : '')
       if (selectedFile) {
@@ -151,7 +158,7 @@ export function LayerForm({
       }
       return formData
     },
-    [selectedFile, style, legend, groupId, isPrivate]
+    [selectedFile, style, legend, provenance, popup, groupId, isPrivate]
   )
 
   const save = useCallback(
@@ -284,6 +291,9 @@ export function LayerForm({
                 Privado (visível apenas para membros e admins)
               </FieldLabel>
             </Field>
+
+            <ProvenanceEditor value={provenance} onChange={setProvenance} />
+            <PopupEditor data={preview} value={popup} onChange={setPopup} />
           </FieldGroup>
 
           <div className="flex flex-col gap-4">
@@ -295,7 +305,7 @@ export function LayerForm({
               onChange={handleStyleChange}
             />
             <StyleEditor value={style} onChange={handleStyleChange} />
-            {!hasGraduatedClassify(style) && (
+            {!hasClassify(style) && (
               <LegendEditor value={legend} onChange={setLegend} />
             )}
           </div>

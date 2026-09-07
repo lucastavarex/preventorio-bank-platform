@@ -28,6 +28,7 @@ import {
   filterLayersWithLegend,
   GeoportalLegendBody,
 } from '@/components/geoportal/geoportal-legend'
+import { LayerFactSheet } from '@/components/geoportal/layer-fact-sheet'
 import type { BasemapId } from '@/components/map/basemap-styles'
 import { NavUser } from '@/components/nav-user'
 import {
@@ -47,6 +48,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Slider } from '@/components/ui/slider'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
@@ -84,6 +92,8 @@ type GeoportalSidebarProps = {
   onOpacityChange: (layerId: string, value: number) => void
   hiddenClasses: Record<string, Set<number>>
   onToggleClass: (layerId: string, classIndex: number) => void
+  factLayerId: string | null
+  onFactLayerIdChange: (id: string | null) => void
 }
 
 export function GeoportalSidebar({
@@ -105,6 +115,8 @@ export function GeoportalSidebar({
   onOpacityChange,
   hiddenClasses,
   onToggleClass,
+  factLayerId,
+  onFactLayerIdChange,
 }: GeoportalSidebarProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { user, isLoaded } = useUser()
@@ -353,6 +365,7 @@ export function GeoportalSidebar({
                           onNameClick={onLayerNameClick}
                           onDownload={onDownloadLayer}
                           onOpacityChange={onOpacityChange}
+                          onOpenFact={() => onFactLayerIdChange(layer.id)}
                           isAdmin={isAdmin}
                         />
                       )}
@@ -441,6 +454,7 @@ export function GeoportalSidebar({
                               onNameClick={onLayerNameClick}
                               onDownload={onDownloadLayer}
                               onOpacityChange={onOpacityChange}
+                              onOpenFact={() => onFactLayerIdChange(layer.id)}
                               isAdmin={isAdmin}
                             />
                           )
@@ -488,6 +502,28 @@ export function GeoportalSidebar({
         </div>
       </aside>
       {infoDialog}
+      <Sheet
+        open={Boolean(factLayerId)}
+        onOpenChange={open => {
+          if (!open) onFactLayerIdChange(null)
+        }}
+      >
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>
+              {factLayerId
+                ? (layersById.get(factLayerId)?.title ?? 'Camada')
+                : 'Camada'}
+            </SheetTitle>
+            <SheetDescription>Ficha de proveniência</SheetDescription>
+          </SheetHeader>
+          <div className="overflow-auto px-4 pb-4">
+            {factLayerId && layersById.get(factLayerId) ? (
+              <LayerFactSheet layer={layersById.get(factLayerId)!} />
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   )
 }
@@ -503,6 +539,7 @@ function LayerRow({
   onNameClick,
   onDownload,
   onOpacityChange,
+  onOpenFact,
   isAdmin,
 }: {
   layer: Layer
@@ -515,6 +552,7 @@ function LayerRow({
   onNameClick: (layer: Layer) => void
   onDownload: (layer: Layer) => void
   onOpacityChange: (layerId: string, value: number) => void
+  onOpenFact: () => void
   isAdmin: boolean
 }) {
   const canZoom = Boolean(layer.bbox && layer.bbox.length >= 4)
@@ -570,6 +608,16 @@ function LayerRow({
             <DownloadIcon />
           </Button>
         )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          title="Ficha da camada"
+          aria-label={`Ficha de ${layer.title}`}
+          onClick={onOpenFact}
+        >
+          <InfoIcon />
+        </Button>
         {isAdmin && (
           <Button asChild variant="ghost" size="icon-xs">
             <Link

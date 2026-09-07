@@ -60,6 +60,11 @@ const data: {
           url: '/dashboard/layers',
           adminOnly: true,
         },
+        {
+          title: 'Mapas',
+          url: '/dashboard/maps',
+          adminOnly: true,
+        },
       ],
     },
     {

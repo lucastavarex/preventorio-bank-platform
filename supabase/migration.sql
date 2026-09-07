@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS public.layers (
   is_private BOOLEAN NOT NULL DEFAULT false,
   style JSONB NOT NULL DEFAULT '{}',
   legend JSONB NOT NULL DEFAULT '{}',
+  provenance JSONB NOT NULL DEFAULT '{}',
+  popup JSONB NOT NULL DEFAULT '{}',
   geojson_storage_path TEXT,
   bbox FLOAT8[],
   sort_order INT NOT NULL DEFAULT 0,
@@ -120,15 +122,58 @@ CREATE POLICY "layers_admin_delete" ON public.layers
   TO authenticated
   USING (public.requesting_role() IN ('org:admin', 'admin'));
 
--- 8. Storage bucket for GeoJSON files
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('geojson', 'geojson', true)
-ON CONFLICT (id) DO NOTHING;
+-- 8. Saved map compositions
+CREATE TABLE IF NOT EXISTS public.maps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  notes TEXT,
+  is_private BOOLEAN NOT NULL DEFAULT false,
+  basemap_id TEXT NOT NULL DEFAULT 'streets',
+  camera JSONB NOT NULL DEFAULT '{}'::jsonb,
+  layers JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
--- Storage policies
-CREATE POLICY "geojson_public_read" ON storage.objects
+ALTER TABLE public.maps ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "maps_public_read" ON public.maps
   FOR SELECT
-  USING (bucket_id = 'geojson');
+  USING (is_private = false);
+
+CREATE POLICY "maps_auth_read" ON public.maps
+  FOR SELECT
+  TO authenticated
+  USING (
+    public.requesting_role() IN (
+      'org:admin',
+      'org:member',
+      'admin',
+      'reader'
+    )
+  );
+
+CREATE POLICY "maps_admin_insert" ON public.maps
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.requesting_role() IN ('org:admin', 'admin'));
+
+CREATE POLICY "maps_admin_update" ON public.maps
+  FOR UPDATE
+  TO authenticated
+  USING (public.requesting_role() IN ('org:admin', 'admin'))
+  WITH CHECK (public.requesting_role() IN ('org:admin', 'admin'));
+
+CREATE POLICY "maps_admin_delete" ON public.maps
+  FOR DELETE
+  TO authenticated
+  USING (public.requesting_role() IN ('org:admin', 'admin'));
+
+-- 9. Storage bucket for GeoJSON files (private; read via signed URLs)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('geojson', 'geojson', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
 
 CREATE POLICY "geojson_admin_insert" ON storage.objects
   FOR INSERT

@@ -51,6 +51,8 @@ export interface Database {
           is_private: boolean
           style: LayerStyle
           legend: LegendConfig
+          provenance: LayerProvenance
+          popup: LayerPopupConfig
           geojson_storage_path: string | null
           bbox: number[] | null
           sort_order: number
@@ -66,6 +68,8 @@ export interface Database {
           is_private?: boolean
           style?: LayerStyle
           legend?: LegendConfig
+          provenance?: LayerProvenance
+          popup?: LayerPopupConfig
           geojson_storage_path?: string | null
           bbox?: number[] | null
           sort_order?: number
@@ -81,6 +85,8 @@ export interface Database {
           is_private?: boolean
           style?: LayerStyle
           legend?: LegendConfig
+          provenance?: LayerProvenance
+          popup?: LayerPopupConfig
           geojson_storage_path?: string | null
           bbox?: number[] | null
           sort_order?: number
@@ -94,6 +100,44 @@ export interface Database {
             referencedColumns: ['id']
           },
         ]
+      }
+      maps: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          notes: string | null
+          is_private: boolean
+          basemap_id: string
+          camera: SavedMapCamera
+          layers: SavedMapLayer[]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          notes?: string | null
+          is_private?: boolean
+          basemap_id?: string
+          camera?: SavedMapCamera
+          layers?: SavedMapLayer[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          notes?: string | null
+          is_private?: boolean
+          basemap_id?: string
+          camera?: SavedMapCamera
+          layers?: SavedMapLayer[]
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: Record<string, never>
@@ -110,11 +154,28 @@ export type ClassifyClass = {
   visible?: boolean
 }
 
+export type CategoricalClass = {
+  value: string
+  color: string
+  label: string
+  visible?: boolean
+}
+
 export type GraduatedClassify = {
+  mode?: 'graduated'
   property: string
   palette?: string
   classes: ClassifyClass[]
 }
+
+export type CategoricalClassify = {
+  mode: 'categorical'
+  property: string
+  palette?: string
+  classes: CategoricalClass[]
+}
+
+export type LayerClassify = GraduatedClassify | CategoricalClassify
 
 export type LayerStyle = {
   type?: 'fill' | 'line' | 'circle'
@@ -126,7 +187,7 @@ export type LayerStyle = {
   circleRadius?: number
   circleColor?: string
   circleOpacity?: number
-  classify?: GraduatedClassify
+  classify?: LayerClassify
 }
 
 export type LegendConfig = {
@@ -139,12 +200,64 @@ export type LegendItem = {
   type?: 'fill' | 'line' | 'circle'
 }
 
+export type ProvenanceSource = 'osm' | 'kobo' | 'workshop' | 'qgis' | 'other'
+export type ProvenanceTheme =
+  | 'physical_vulnerability'
+  | 'risk_perception'
+  | 'infrastructure'
+  | 'overlay'
+  | 'other'
+export type ProvenanceHazard =
+  | 'landslide'
+  | 'rockfall'
+  | 'hydrological'
+  | 'none'
+export type ParticipationLevel = 'low' | 'medium' | 'high'
+
+export type LayerProvenance = {
+  source?: ProvenanceSource
+  sourceDetail?: string
+  period?: string
+  producers?: string
+  theme?: ProvenanceTheme
+  hazard?: ProvenanceHazard
+  participationLevel?: ParticipationLevel
+  license?: string
+  usageRestriction?: string
+}
+
+export type LayerPopupField = {
+  key: string
+  label?: string
+}
+
+export type LayerPopupConfig = {
+  fields?: LayerPopupField[]
+  imageField?: string
+}
+
+export type SavedMapLayer = {
+  id: string
+  opacity?: number
+}
+
+export type SavedMapCamera = {
+  longitude?: number
+  latitude?: number
+  zoom?: number
+  bearing?: number
+  pitch?: number
+}
+
 export type Group = Database['public']['Tables']['groups']['Row']
 export type Layer = Database['public']['Tables']['layers']['Row']
+export type SavedMap = Database['public']['Tables']['maps']['Row']
 export type LayerWithGroup = Layer & {
   groups: Pick<Group, 'title'> | null
 }
 export type GroupInsert = Database['public']['Tables']['groups']['Insert']
 export type LayerInsert = Database['public']['Tables']['layers']['Insert']
+export type MapInsert = Database['public']['Tables']['maps']['Insert']
 export type GroupUpdate = Database['public']['Tables']['groups']['Update']
 export type LayerUpdate = Database['public']['Tables']['layers']['Update']
+export type MapUpdate = Database['public']['Tables']['maps']['Update']

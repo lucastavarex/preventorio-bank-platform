@@ -1,13 +1,10 @@
 import {
-  BookOpenIcon,
   FolderIcon,
   FolderPlusIcon,
-  GlobeIcon,
-  InfoIcon,
   LayersIcon,
-  LockIcon,
   type LucideIcon,
   MapIcon,
+  MapPinnedIcon,
   PlusIcon,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -24,12 +21,17 @@ import {
 } from '@/components/ui/card'
 import type {
   DashboardGroupSummary,
+  DashboardIncompleteLayer,
   DashboardOverview,
   DashboardRecentLayer,
+  DashboardRecentMap,
 } from '@/lib/actions/dashboard'
+import { geoportalMapPath } from '@/lib/geoportal-url'
 import { ROLE_LABELS, type Role } from '@/lib/roles'
-import { ARTICLE, geoportalLayerPath, ROUTES, SITE_TAGLINE } from '@/lib/site'
+import { geoportalLayerPath, ROUTES, SITE_TAGLINE } from '@/lib/site'
 import { cn } from '@/lib/utils'
+
+const INTEGRITY_PREVIEW = 3
 
 function PrivateBadge() {
   return (
@@ -83,6 +85,7 @@ export function DashboardHome({
   overview: DashboardOverview
 }) {
   const { isAdmin } = overview
+  const showMaps = isAdmin || overview.recentMaps.length > 0
 
   return (
     <div className="flex flex-col gap-8">
@@ -121,6 +124,12 @@ export function DashboardHome({
                 </Link>
               </Button>
               <Button variant="outline" asChild>
+                <Link href="/dashboard/maps/new">
+                  <MapPinnedIcon data-icon="inline-start" />
+                  Novo mapa
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
                 <Link href="/dashboard/groups/new">
                   <FolderPlusIcon data-icon="inline-start" />
                   Novo grupo
@@ -133,7 +142,7 @@ export function DashboardHome({
 
       <section className="flex flex-col gap-3">
         <SectionTitle>Catálogo</SectionTitle>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <StatCard
             icon={FolderIcon}
             label="Grupos"
@@ -143,16 +152,12 @@ export function DashboardHome({
             icon={LayersIcon}
             label="Layers"
             value={overview.layerCount}
+            hint={`${overview.publicLayerCount} públicos · ${overview.privateLayerCount} privados`}
           />
           <StatCard
-            icon={GlobeIcon}
-            label="Layers públicos"
-            value={overview.publicLayerCount}
-          />
-          <StatCard
-            icon={LockIcon}
-            label="Layers privados"
-            value={overview.privateLayerCount}
+            icon={MapPinnedIcon}
+            label="Mapas"
+            value={overview.mapCount}
           />
         </div>
       </section>
@@ -160,44 +165,55 @@ export function DashboardHome({
       {isAdmin && (
         <section className="flex flex-col gap-3">
           <SectionTitle>Integridade do acervo</SectionTitle>
-          <div className="grid gap-4 md:grid-cols-2">
-            <IncompleteCard
-              title="Sem GeoJSON"
-              description="Camadas sem arquivo enviado."
-              items={overview.missingGeojson}
-            />
-            <IncompleteCard
-              title="Sem descrição"
-              description="Camadas sem metadado de descrição."
-              items={overview.missingDescription}
-            />
-          </div>
+          <Card>
+            <CardContent className="grid gap-6 pt-6 sm:grid-cols-2 sm:gap-0">
+              <IntegrityColumn
+                title="Sem GeoJSON"
+                description="Camadas sem arquivo."
+                items={overview.missingGeojson}
+              />
+              <IntegrityColumn
+                className="sm:border-l sm:pl-6"
+                title="Sem ficha"
+                description="Camadas sem proveniência."
+                items={overview.missingProvenance}
+              />
+            </CardContent>
+          </Card>
         </section>
       )}
 
-      <section className="flex flex-col gap-3">
-        <SectionTitle>Por grupo</SectionTitle>
-        {overview.groups.length === 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Nenhum grupo</CardTitle>
-              <CardDescription>
-                {isAdmin
-                  ? 'Crie o primeiro grupo para organizar as camadas.'
-                  : 'Ainda não há grupos visíveis para o seu acesso.'}
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        ) : (
-          <Card>
-            <ul className="divide-y">
-              {overview.groups.map(group => (
-                <GroupRow key={group.id} group={group} isAdmin={isAdmin} />
-              ))}
-            </ul>
-          </Card>
-        )}
-      </section>
+      {showMaps && (
+        <section className="flex flex-col gap-3">
+          <SectionTitle>Mapas publicados</SectionTitle>
+          {overview.recentMaps.length === 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Nenhum mapa</CardTitle>
+                <CardDescription>
+                  Salve uma composição de camadas para compartilhar no
+                  geoportal.
+                </CardDescription>
+              </CardHeader>
+              {isAdmin && (
+                <CardContent>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/dashboard/maps/new">Novo mapa</Link>
+                  </Button>
+                </CardContent>
+              )}
+            </Card>
+          ) : (
+            <Card>
+              <ul className="divide-y">
+                {overview.recentMaps.map(map => (
+                  <RecentMapRow key={map.id} map={map} isAdmin={isAdmin} />
+                ))}
+              </ul>
+            </Card>
+          )}
+        </section>
+      )}
 
       <section className="flex flex-col gap-3">
         <SectionTitle>Atualizadas recentemente</SectionTitle>
@@ -228,53 +244,27 @@ export function DashboardHome({
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionTitle>Contexto</SectionTitle>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="bg-secondary/40">
+        <SectionTitle>Por grupo</SectionTitle>
+        {overview.groups.length === 0 ? (
+          <Card>
             <CardHeader>
-              <div className="flex items-start gap-3">
-                <IconChip icon={BookOpenIcon} />
-                <div className="flex flex-col gap-1">
-                  <CardTitle>{ARTICLE.title}</CardTitle>
-                  <CardDescription>
-                    Estudo de caso do mapeamento comunitário do Morro do
-                    Preventório.
-                  </CardDescription>
-                </div>
-              </div>
+              <CardTitle>Nenhum grupo</CardTitle>
+              <CardDescription>
+                {isAdmin
+                  ? 'Crie o primeiro grupo para organizar as camadas.'
+                  : 'Ainda não há grupos visíveis para o seu acesso.'}
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button variant="outline" size="sm" asChild>
-                <Link href={ROUTES.artigo}>
-                  <BookOpenIcon data-icon="inline-start" />
-                  Ler o artigo
-                </Link>
-              </Button>
-            </CardContent>
           </Card>
-          <Card className="bg-secondary/40">
-            <CardHeader>
-              <div className="flex items-start gap-3">
-                <IconChip icon={InfoIcon} />
-                <div className="flex flex-col gap-1">
-                  <CardTitle>Sobre o geoportal</CardTitle>
-                  <CardDescription>
-                    Origem das camadas, recorte do trabalho e parceiros do
-                    projeto.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" size="sm" asChild>
-                <Link href={ROUTES.sobre}>
-                  <InfoIcon data-icon="inline-start" />
-                  Ver sobre
-                </Link>
-              </Button>
-            </CardContent>
+        ) : (
+          <Card>
+            <ul className="divide-y">
+              {overview.groups.map(group => (
+                <GroupRow key={group.id} group={group} isAdmin={isAdmin} />
+              ))}
+            </ul>
           </Card>
-        </div>
+        )}
       </section>
     </div>
   )
@@ -352,14 +342,48 @@ function RecentLayerRow({
   )
 }
 
+function RecentMapRow({
+  map,
+  isAdmin,
+}: {
+  map: DashboardRecentMap
+  isAdmin: boolean
+}) {
+  const updatedLabel = formatUpdatedAt(map.updatedAt)
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <Link
+        href={geoportalMapPath(map.id)}
+        className="min-w-0 flex-1 rounded-md hover:bg-accent/60"
+      >
+        <p className="truncate font-medium hover:underline">{map.title}</p>
+        <p className="text-muted-foreground text-xs">
+          {layerCountLabel(map.layerCount)} — {updatedLabel}
+        </p>
+      </Link>
+      <div className="flex items-center gap-2">
+        {map.isPrivate && <PrivateBadge />}
+        {isAdmin ? (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/maps/${map.id}`}>Editar</Link>
+          </Button>
+        ) : null}
+      </div>
+    </li>
+  )
+}
+
 function StatCard({
   icon,
   label,
   value,
+  hint,
 }: {
   icon: LucideIcon
   label: string
   value: number
+  hint?: string
 }) {
   return (
     <Card>
@@ -371,40 +395,45 @@ function StatCard({
         <CardTitle className="font-semibold text-3xl tabular-nums">
           {value}
         </CardTitle>
+        {hint ? <CardDescription>{hint}</CardDescription> : null}
       </CardHeader>
     </Card>
   )
 }
 
-function IncompleteCard({
+function IntegrityColumn({
   title,
   description,
   items,
+  className,
 }: {
   title: string
   description: string
-  items: { id: string; title: string }[]
+  items: DashboardIncompleteLayer[]
+  className?: string
 }) {
+  const preview = items.slice(0, INTEGRITY_PREVIEW)
+  const remaining = items.length - preview.length
   const hasIssues = items.length > 0
 
   return (
-    <Card className={cn(hasIssues && 'bg-destructive/5')}>
-      <CardHeader>
-        <CardDescription>{title}</CardDescription>
-        <CardTitle
-          className={cn(
-            'font-semibold text-3xl tabular-nums',
-            hasIssues && 'text-destructive'
-          )}
-        >
-          {items.length}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      {hasIssues && (
-        <CardContent>
-          <ul className="flex flex-col gap-1.5">
-            {items.map(item => (
+    <div className={cn('flex gap-3 sm:pr-6', className)}>
+      <p
+        className={cn(
+          'shrink-0 font-semibold text-2xl tabular-nums leading-none',
+          hasIssues && 'text-destructive'
+        )}
+      >
+        {items.length}
+      </p>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <div>
+          <p className="font-medium text-sm leading-none">{title}</p>
+          <p className="mt-1 text-muted-foreground text-xs">{description}</p>
+        </div>
+        {hasIssues ? (
+          <ul className="flex flex-col gap-1">
+            {preview.map(item => (
               <li key={item.id}>
                 <Link
                   href={`/dashboard/layers/${item.id}`}
@@ -415,9 +444,21 @@ function IncompleteCard({
                 </Link>
               </li>
             ))}
+            {remaining > 0 && (
+              <li>
+                <Link
+                  href="/dashboard/layers"
+                  className="text-muted-foreground text-xs hover:underline"
+                >
+                  e {remaining} {remaining === 1 ? 'outra' : 'outras'}
+                </Link>
+              </li>
+            )}
           </ul>
-        </CardContent>
-      )}
-    </Card>
+        ) : (
+          <p className="text-muted-foreground text-xs">Nenhuma pendência.</p>
+        )}
+      </div>
+    </div>
   )
 }

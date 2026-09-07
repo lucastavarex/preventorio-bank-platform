@@ -7,7 +7,6 @@ import {
 import { LayerForm } from '@/components/forms/layer-form'
 import { useGroups } from '@/hooks/use-groups'
 import { useLayer } from '@/hooks/use-layers'
-import { getGeojsonStorageBaseUrl } from '@/lib/storage'
 
 export function EditLayerPageClient({ id }: { id: string }) {
   const layerQuery = useLayer(id)
@@ -35,11 +34,7 @@ export function EditLayerPageClient({ id }: { id: string }) {
         <h1 className="font-bold text-2xl">Editar layer</h1>
         <p className="text-muted-foreground text-sm">{layerQuery.data.title}</p>
       </div>
-      <LayerForm
-        groups={groupsQuery.data}
-        defaultValues={layerQuery.data}
-        storageBaseUrl={getGeojsonStorageBaseUrl()}
-      />
+      <LayerForm groups={groupsQuery.data} defaultValues={layerQuery.data} />
     </div>
   )
 }

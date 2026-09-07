@@ -12,15 +12,22 @@ export function invalidateGroups(queryClient: QueryClient) {
 
 export function invalidateLayers(
   queryClient: QueryClient,
-  geojsonPath?: string
+  layerId?: string
 ) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.layers.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.geoportal.all }),
-    geojsonPath
+    layerId
       ? queryClient.invalidateQueries({
-          queryKey: queryKeys.geojson.byPath(geojsonPath),
+          queryKey: queryKeys.geojson.byLayer(layerId),
         })
       : Promise.resolve(),
+  ])
+}
+
+export function invalidateMaps(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.maps.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.geoportal.all }),
   ])
 }

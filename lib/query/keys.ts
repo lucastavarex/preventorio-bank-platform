@@ -21,6 +21,14 @@ export const queryKeys = {
   },
   geojson: {
     all: ['geojson'] as const,
-    byPath: (path: string) => [...queryKeys.geojson.all, path] as const,
+    byLayer: (layerId: string) => [...queryKeys.geojson.all, layerId] as const,
+  },
+  maps: {
+    all: ['maps'] as const,
+    lists: () => [...queryKeys.maps.all, 'list'] as const,
+    list: () => [...queryKeys.maps.lists()] as const,
+    details: () => [...queryKeys.maps.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.maps.details(), id] as const,
+    viewer: (id: string) => [...queryKeys.maps.all, 'viewer', id] as const,
   },
 }

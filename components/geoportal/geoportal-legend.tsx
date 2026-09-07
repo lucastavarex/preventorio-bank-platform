@@ -1,8 +1,8 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { hasGraduatedClassify } from '@/lib/classify'
-import type { ClassifyClass, Layer } from '@/lib/supabase/types'
+import { hasClassify } from '@/lib/classify'
+import type { Layer } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
 
 export type LegendBodyProps = {
@@ -13,9 +13,7 @@ export type LegendBodyProps = {
 
 export function filterLayersWithLegend(layers: Layer[]) {
   return layers.filter(
-    l =>
-      hasGraduatedClassify(l.style) ||
-      (l.legend?.items && l.legend.items.length > 0)
+    l => hasClassify(l.style) || (l.legend?.items && l.legend.items.length > 0)
   )
 }
 
@@ -34,12 +32,12 @@ export function GeoportalLegendBody({
         <div key={layer.id} className="flex flex-col gap-1">
           <p className="font-medium text-xs">{layer.title}</p>
           <div className="flex flex-col gap-1">
-            {hasGraduatedClassify(layer.style)
+            {hasClassify(layer.style)
               ? layer.style.classify.classes.map((cls, i) => {
                   const hidden = isClassHidden(layer.id, i, cls, hiddenClasses)
                   return (
                     <Button
-                      key={`${cls.min}-${cls.max}-${i}`}
+                      key={`${cls.label}-${i}`}
                       type="button"
                       variant="ghost"
                       className={cn(
@@ -75,7 +73,7 @@ export function GeoportalLegendBody({
 function isClassHidden(
   layerId: string,
   index: number,
-  cls: ClassifyClass,
+  cls: { visible?: boolean },
   hiddenClasses: Record<string, Set<number>>
 ) {
   const session = hiddenClasses[layerId]

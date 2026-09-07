@@ -16,6 +16,7 @@ const nonClickable = new Set(['geoportal'])
 
 const labels: Record<string, string> = {
   dashboard: 'Início',
+  maps: 'Mapas',
   geoportal: 'Geoportal',
   conta: 'Conta',
   'gerenciar-mapas': 'Gerenciar mapas',

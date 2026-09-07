@@ -58,10 +58,7 @@ export function useUpdateLayer(id: string) {
         () => {
           const file = formData.get('geojson')
           const replaced = file instanceof File && file.size > 0
-          return invalidateLayers(
-            queryClient,
-            replaced ? `${id}.geojson` : undefined
-          )
+          return invalidateLayers(queryClient, replaced ? id : undefined)
         }
       ),
   })
@@ -74,8 +71,7 @@ export function useDeleteLayer() {
     mutationFn: async (input: { id: string; geojsonPath?: string | null }) => {
       await deleteLayer(input.id)
     },
-    onSuccess: (_data, input) =>
-      invalidateLayers(queryClient, input.geojsonPath ?? undefined),
+    onSuccess: (_data, input) => invalidateLayers(queryClient, input.id),
     onError: error => {
       if (isNextRedirect(error)) return
       toast.error(

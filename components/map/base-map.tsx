@@ -52,6 +52,7 @@ type BaseMapProps = {
   bounds?: number[] | null
   camera?: MapCamera | null
   mapStyle?: StyleSpecification
+  onMoveEnd?: (camera: MapCamera) => void
   /** Extra controls stacked below the zoom buttons (e.g. basemap switcher). */
   trailingControls?: ReactNode
   /** When false, hides the built-in zoom / trailing control stack. Default true if interactive. */
@@ -78,6 +79,7 @@ export const BaseMap = forwardRef<BaseMapHandle, BaseMapProps>(function BaseMap(
     bounds,
     camera,
     mapStyle = OSM_STYLE,
+    onMoveEnd,
     trailingControls,
     showControls,
   },
@@ -151,6 +153,7 @@ export const BaseMap = forwardRef<BaseMapHandle, BaseMapProps>(function BaseMap(
         onClick={onClick}
         interactiveLayerIds={interactiveLayerIds}
         canvasContextAttributes={{ preserveDrawingBuffer: true }}
+        onMoveEnd={event => onMoveEnd?.(readCamera(event.target))}
         onLoad={e => {
           e.target.resize()
           const saved = cameraRef.current

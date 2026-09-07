@@ -24,21 +24,30 @@ import {
 } from '@/components/ui/select'
 import {
   CLASSIFY_PALETTES,
+  categoricalClasses,
   DEFAULT_PALETTE_ID,
   equalIntervalClasses,
   fieldExtent,
   getPalette,
   normalizeHex,
   numericFieldNames,
+  propertyFieldNames,
   recolorClasses,
+  uniquePropertyValues,
 } from '@/lib/classify'
-import type { ClassifyClass, LayerStyle } from '@/lib/supabase/types'
+import type {
+  CategoricalClass,
+  ClassifyClass,
+  LayerStyle,
+} from '@/lib/supabase/types'
 
 const NONE_PROPERTY = '__none__'
-
-/** Shared by header + rows so `auto` icon columns don't collapse differently. */
 const CLASS_ROW_GRID =
   'grid grid-cols-[2rem_2.5rem_5.75rem_1fr_1fr_1fr_2rem] items-center gap-1.5'
+const CATEGORICAL_ROW_GRID =
+  'grid grid-cols-[2rem_2.5rem_5.75rem_1fr_1fr_2rem] items-center gap-1.5'
+
+type ClassifyMode = 'none' | 'graduated' | 'categorical'
 
 type ClassifyEditorProps = {
   data: GeoJSON.FeatureCollection | null
@@ -47,111 +56,230 @@ type ClassifyEditorProps = {
 }
 
 export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
-  const fields = useMemo(() => numericFieldNames(data), [data])
+  const numericFields = useMemo(() => numericFieldNames(data), [data])
+  const allFields = useMemo(() => propertyFieldNames(data), [data])
   const [classCount, setClassCount] = useState(
     value.classify?.classes.length || 5
   )
 
   const classify = value.classify
+  const mode: ClassifyMode =
+    classify?.mode === 'categorical'
+      ? 'categorical'
+      : classify?.property
+        ? 'graduated'
+        : 'none'
   const property = classify?.property ?? ''
   const paletteId = classify?.palette ?? DEFAULT_PALETTE_ID
 
-  const updateClassify = (
-    propertyName: string,
-    classes: ClassifyClass[],
-    palette = paletteId
-  ) => {
+  const setMode = (next: ClassifyMode) => {
+    if (next === 'none') {
+      onChange({ ...value, classify: undefined })
+      return
+    }
     onChange({
       ...value,
-      classify: propertyName
-        ? { property: propertyName, classes, palette }
-        : undefined,
+      classify:
+        next === 'categorical'
+          ? {
+              mode: 'categorical',
+              property: '',
+              classes: [],
+              palette: paletteId,
+            }
+          : {
+              mode: 'graduated',
+              property: '',
+              classes: [],
+              palette: paletteId,
+            },
     })
   }
 
-  const handlePropertyChange = (nextProperty: string) => {
+  const handleGraduatedProperty = (nextProperty: string) => {
     if (!nextProperty) {
       onChange({ ...value, classify: undefined })
       return
     }
     if (!data) {
-      updateClassify(nextProperty, classify?.classes ?? [])
-      return
-    }
-    const extent = fieldExtent(data, nextProperty)
-    if (!extent) {
-      updateClassify(nextProperty, [])
-      return
-    }
-    updateClassify(
-      nextProperty,
-      equalIntervalClasses(extent.min, extent.max, classCount, paletteId)
-    )
-  }
-
-  const handleGenerate = () => {
-    if (!data || !property) return
-    const extent = fieldExtent(data, property)
-    if (!extent) return
-    updateClassify(
-      property,
-      equalIntervalClasses(extent.min, extent.max, classCount, paletteId)
-    )
-  }
-
-  const handlePaletteChange = (nextPalette: string) => {
-    if (!classify) {
       onChange({
         ...value,
-        classify: value.classify
-          ? { ...value.classify, palette: nextPalette }
-          : undefined,
+        classify: {
+          mode: 'graduated',
+          property: nextProperty,
+          classes: [],
+          palette: paletteId,
+        },
       })
       return
     }
-    updateClassify(
-      classify.property,
-      recolorClasses(classify.classes, nextPalette),
-      nextPalette
-    )
+    const extent = fieldExtent(data, nextProperty)
+    onChange({
+      ...value,
+      classify: {
+        mode: 'graduated',
+        property: nextProperty,
+        palette: paletteId,
+        classes: extent
+          ? equalIntervalClasses(extent.min, extent.max, classCount, paletteId)
+          : [],
+      },
+    })
   }
 
-  const updateClass = (index: number, patch: Partial<ClassifyClass>) => {
-    if (!classify) return
-    const classes = classify.classes.map((cls, i) =>
-      i === index ? { ...cls, ...patch } : cls
-    )
-    updateClassify(classify.property, classes)
+  const handleCategoricalProperty = (nextProperty: string) => {
+    if (!nextProperty) {
+      onChange({ ...value, classify: undefined })
+      return
+    }
+    const classes = data
+      ? categoricalClasses(uniquePropertyValues(data, nextProperty), paletteId)
+      : []
+    onChange({
+      ...value,
+      classify: {
+        mode: 'categorical',
+        property: nextProperty,
+        palette: paletteId,
+        classes,
+      },
+    })
   }
 
-  const addClass = () => {
+  const handleGenerate = () => {
+    if (!data || !property || !classify) return
+    if (classify.mode === 'categorical') {
+      onChange({
+        ...value,
+        classify: {
+          ...classify,
+          classes: categoricalClasses(
+            uniquePropertyValues(data, property),
+            paletteId
+          ),
+        },
+      })
+      return
+    }
+    const extent = fieldExtent(data, property)
+    if (!extent) return
+    onChange({
+      ...value,
+      classify: {
+        ...classify,
+        mode: 'graduated',
+        classes: equalIntervalClasses(
+          extent.min,
+          extent.max,
+          classCount,
+          paletteId
+        ),
+      },
+    })
+  }
+
+  const handlePaletteChange = (nextPalette: string) => {
     if (!classify) return
+    if (classify.mode === 'categorical') {
+      onChange({
+        ...value,
+        classify: {
+          ...classify,
+          palette: nextPalette,
+          classes: recolorClasses(classify.classes, nextPalette),
+        },
+      })
+      return
+    }
+    onChange({
+      ...value,
+      classify: {
+        ...classify,
+        palette: nextPalette,
+        classes: recolorClasses(classify.classes, nextPalette),
+      },
+    })
+  }
+
+  const updateGraduatedClass = (
+    index: number,
+    patch: Partial<ClassifyClass>
+  ) => {
+    if (!classify || classify.mode === 'categorical') return
+    onChange({
+      ...value,
+      classify: {
+        ...classify,
+        classes: classify.classes.map((cls, i) =>
+          i === index ? { ...cls, ...patch } : cls
+        ),
+      },
+    })
+  }
+
+  const updateCategoricalClass = (
+    index: number,
+    patch: Partial<CategoricalClass>
+  ) => {
+    if (classify?.mode !== 'categorical') return
+    onChange({
+      ...value,
+      classify: {
+        ...classify,
+        classes: classify.classes.map((cls, i) =>
+          i === index ? { ...cls, ...patch } : cls
+        ),
+      },
+    })
+  }
+
+  const addGraduatedClass = () => {
+    if (!classify || classify.mode === 'categorical') return
     const last = classify.classes[classify.classes.length - 1]
     const stops = getPalette(paletteId).stops
     const min = last?.max ?? 0
-    updateClassify(classify.property, [
-      ...classify.classes,
-      {
-        min,
-        max: min + 1,
-        color: last?.color ?? stops[stops.length - 1],
-        label: '',
-        visible: true,
+    onChange({
+      ...value,
+      classify: {
+        ...classify,
+        classes: [
+          ...classify.classes,
+          {
+            min,
+            max: min + 1,
+            color: last?.color ?? stops[stops.length - 1],
+            label: '',
+            visible: true,
+          },
+        ],
       },
-    ])
+    })
   }
 
   const removeClass = (index: number) => {
     if (!classify) return
-    updateClassify(
-      classify.property,
-      classify.classes.filter((_, i) => i !== index)
-    )
+    if (classify.mode === 'categorical') {
+      onChange({
+        ...value,
+        classify: {
+          ...classify,
+          classes: classify.classes.filter((_, i) => i !== index),
+        },
+      })
+      return
+    }
+    onChange({
+      ...value,
+      classify: {
+        ...classify,
+        classes: classify.classes.filter((_, i) => i !== index),
+      },
+    })
   }
 
   return (
     <FieldSet className="rounded-lg border p-4">
-      <FieldLegend variant="label">Classificação graduada</FieldLegend>
+      <FieldLegend variant="label">Classificação</FieldLegend>
       <FieldGroup>
         {!data && (
           <FieldDescription>
@@ -159,13 +287,34 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
           </FieldDescription>
         )}
 
-        {data && fields.length === 0 && (
+        <Field>
+          <FieldLabel htmlFor="classify-mode">Tipo</FieldLabel>
+          <Select
+            value={mode}
+            onValueChange={next => setMode(next as ClassifyMode)}
+          >
+            <SelectTrigger id="classify-mode" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="none">Cor única</SelectItem>
+                <SelectItem value="graduated">Graduada (intervalos)</SelectItem>
+                <SelectItem value="categorical">
+                  Categórica (valores únicos)
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {mode === 'graduated' && data && numericFields.length === 0 && (
           <FieldDescription>
             Nenhum campo numérico encontrado no GeoJSON.
           </FieldDescription>
         )}
 
-        {data && fields.length > 0 && (
+        {mode === 'graduated' && data && numericFields.length > 0 && (
           <>
             <Field>
               <FieldLabel htmlFor="classify-property">
@@ -174,7 +323,7 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
               <Select
                 value={property || NONE_PROPERTY}
                 onValueChange={next =>
-                  handlePropertyChange(next === NONE_PROPERTY ? '' : next)
+                  handleGraduatedProperty(next === NONE_PROPERTY ? '' : next)
                 }
               >
                 <SelectTrigger id="classify-property" className="w-full">
@@ -182,10 +331,8 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value={NONE_PROPERTY}>
-                      Cor única (sem classificação)
-                    </SelectItem>
-                    {fields.map(field => (
+                    <SelectItem value={NONE_PROPERTY}>Selecione</SelectItem>
+                    {numericFields.map(field => (
                       <SelectItem key={field} value={field}>
                         {field}
                       </SelectItem>
@@ -232,76 +379,211 @@ export function ClassifyEditor({ data, value, onChange }: ClassifyEditorProps) {
                   />
                 </Field>
 
-                {classify && classify.classes.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    <div
-                      className={`${CLASS_ROW_GRID} text-muted-foreground text-xs`}
-                    >
-                      <span />
-                      <span>Cor</span>
-                      <span>Hex</span>
-                      <span>Min</span>
-                      <span>Max</span>
-                      <span>Rótulo</span>
-                      <span />
-                    </div>
-                    {classify.classes.map((cls, i) => (
-                      <div key={i} className={CLASS_ROW_GRID}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          title={cls.visible === false ? 'Mostrar' : 'Ocultar'}
-                          onClick={() =>
-                            updateClass(i, { visible: cls.visible === false })
-                          }
-                        >
-                          {cls.visible === false ? <EyeOffIcon /> : <EyeIcon />}
-                        </Button>
-                        <ClassColorInput
-                          color={cls.color}
-                          onChange={color => updateClass(i, { color })}
-                        />
-                        <ClassNumberInput
-                          value={cls.min}
-                          onChange={min => updateClass(i, { min })}
-                          aria-label="Mínimo"
-                        />
-                        <ClassNumberInput
-                          value={cls.max}
-                          onChange={max => updateClass(i, { max })}
-                          aria-label="Máximo"
-                        />
-                        <Input
-                          value={cls.label}
-                          onChange={event =>
-                            updateClass(i, { label: event.target.value })
-                          }
-                          placeholder="Rótulo"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive"
-                          onClick={() => removeClass(i)}
-                        >
-                          <Trash2Icon />
-                        </Button>
+                {classify &&
+                  classify.mode !== 'categorical' &&
+                  classify.classes.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <div
+                        className={`${CLASS_ROW_GRID} text-muted-foreground text-xs`}
+                      >
+                        <span />
+                        <span>Cor</span>
+                        <span>Hex</span>
+                        <span>Min</span>
+                        <span>Max</span>
+                        <span>Rótulo</span>
+                        <span />
                       </div>
-                    ))}
-                  </div>
-                )}
+                      {classify.classes.map((cls, i) => (
+                        <div key={i} className={CLASS_ROW_GRID}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title={
+                              cls.visible === false ? 'Mostrar' : 'Ocultar'
+                            }
+                            onClick={() =>
+                              updateGraduatedClass(i, {
+                                visible: cls.visible === false,
+                              })
+                            }
+                          >
+                            {cls.visible === false ? (
+                              <EyeOffIcon />
+                            ) : (
+                              <EyeIcon />
+                            )}
+                          </Button>
+                          <ClassColorInput
+                            color={cls.color}
+                            onChange={color =>
+                              updateGraduatedClass(i, { color })
+                            }
+                          />
+                          <ClassNumberInput
+                            value={cls.min}
+                            onChange={min => updateGraduatedClass(i, { min })}
+                            aria-label="Mínimo"
+                          />
+                          <ClassNumberInput
+                            value={cls.max}
+                            onChange={max => updateGraduatedClass(i, { max })}
+                            aria-label="Máximo"
+                          />
+                          <Input
+                            value={cls.label}
+                            onChange={event =>
+                              updateGraduatedClass(i, {
+                                label: event.target.value,
+                              })
+                            }
+                            placeholder="Rótulo"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive"
+                            onClick={() => removeClass(i)}
+                          >
+                            <Trash2Icon />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={addClass}
+                  onClick={addGraduatedClass}
                 >
                   <PlusIcon data-icon="inline-start" />
                   Adicionar classe
                 </Button>
+              </>
+            )}
+          </>
+        )}
+
+        {mode === 'categorical' && data && allFields.length === 0 && (
+          <FieldDescription>
+            Nenhuma propriedade encontrada no GeoJSON.
+          </FieldDescription>
+        )}
+
+        {mode === 'categorical' && data && allFields.length > 0 && (
+          <>
+            <Field>
+              <FieldLabel htmlFor="classify-cat-property">Campo</FieldLabel>
+              <Select
+                value={property || NONE_PROPERTY}
+                onValueChange={next =>
+                  handleCategoricalProperty(next === NONE_PROPERTY ? '' : next)
+                }
+              >
+                <SelectTrigger id="classify-cat-property" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value={NONE_PROPERTY}>Selecione</SelectItem>
+                    {allFields.map(field => (
+                      <SelectItem key={field} value={field}>
+                        {field}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            {property && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerate}
+                >
+                  Gerar classes
+                </Button>
+                <Field>
+                  <FieldLabel>Paleta</FieldLabel>
+                  <PalettePicker
+                    value={paletteId}
+                    options={CLASSIFY_PALETTES}
+                    onChange={handlePaletteChange}
+                  />
+                </Field>
+                {classify?.mode === 'categorical' &&
+                  classify.classes.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <div
+                        className={`${CATEGORICAL_ROW_GRID} text-muted-foreground text-xs`}
+                      >
+                        <span />
+                        <span>Cor</span>
+                        <span>Hex</span>
+                        <span>Valor</span>
+                        <span>Rótulo</span>
+                        <span />
+                      </div>
+                      {classify.classes.map((cls, i) => (
+                        <div
+                          key={`${cls.value}-${i}`}
+                          className={CATEGORICAL_ROW_GRID}
+                        >
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title={
+                              cls.visible === false ? 'Mostrar' : 'Ocultar'
+                            }
+                            onClick={() =>
+                              updateCategoricalClass(i, {
+                                visible: cls.visible === false,
+                              })
+                            }
+                          >
+                            {cls.visible === false ? (
+                              <EyeOffIcon />
+                            ) : (
+                              <EyeIcon />
+                            )}
+                          </Button>
+                          <ClassColorInput
+                            color={cls.color}
+                            onChange={color =>
+                              updateCategoricalClass(i, { color })
+                            }
+                          />
+                          <Input value={cls.value} readOnly />
+                          <Input
+                            value={cls.label}
+                            onChange={event =>
+                              updateCategoricalClass(i, {
+                                label: event.target.value,
+                              })
+                            }
+                            placeholder="Rótulo"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive"
+                            onClick={() => removeClass(i)}
+                          >
+                            <Trash2Icon />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
               </>
             )}
           </>

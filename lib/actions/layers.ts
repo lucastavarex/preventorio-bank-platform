@@ -10,7 +10,10 @@ import {
   createServiceClient,
 } from '@/lib/supabase/server'
 import type {
+  Layer,
   LayerInsert,
+  LayerPopupConfig,
+  LayerProvenance,
   LayerStyle,
   LayerUpdate,
   LayerWithGroup,
@@ -97,15 +100,30 @@ export async function getGroupsWithLayers() {
 
   return result.data.map(g => ({
     ...g,
-    layers: (g.layers ?? []).sort(
-      (a: { sort_order: number }, b: { sort_order: number }) =>
-        a.sort_order - b.sort_order
-    ),
+    layers: (g.layers ?? [])
+      .map((layer: Layer) => ({
+        ...layer,
+        provenance: layer.provenance ?? {},
+        popup: layer.popup ?? {},
+      }))
+      .sort(
+        (a: { sort_order: number }, b: { sort_order: number }) =>
+          a.sort_order - b.sort_order
+      ),
   }))
 }
 
 function isJwtKeyError(message: string) {
   return /no suitable key|wrong key type|jwt/i.test(message)
+}
+
+function parseJsonField<T>(raw: FormDataEntryValue | null, fallback: T): T {
+  if (typeof raw !== 'string' || raw.length === 0) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
 }
 
 async function parseUploadedGeojson(file: File) {
@@ -145,6 +163,8 @@ export async function createLayer(formData: FormData) {
     is_private: formData.get('is_private') === 'on',
     style: styleRaw ? (JSON.parse(styleRaw) as LayerStyle) : {},
     legend: legendRaw ? (JSON.parse(legendRaw) as LegendConfig) : {},
+    provenance: parseJsonField<LayerProvenance>(formData.get('provenance'), {}),
+    popup: parseJsonField<LayerPopupConfig>(formData.get('popup'), {}),
     geojson_storage_path: path,
     bbox,
   }
@@ -185,6 +205,8 @@ export async function updateLayer(id: string, formData: FormData) {
     description: (formData.get('description') as string) || null,
     notes: (formData.get('notes') as string) || null,
     is_private: formData.get('is_private') === 'on',
+    provenance: parseJsonField<LayerProvenance>(formData.get('provenance'), {}),
+    popup: parseJsonField<LayerPopupConfig>(formData.get('popup'), {}),
     updated_at: new Date().toISOString(),
     ...(styleRaw && { style: JSON.parse(styleRaw) as LayerStyle }),
     ...(legendRaw && { legend: JSON.parse(legendRaw) as LegendConfig }),

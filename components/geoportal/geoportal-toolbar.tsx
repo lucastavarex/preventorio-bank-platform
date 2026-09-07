@@ -1,16 +1,20 @@
 'use client'
 
+import { useAuth } from '@clerk/nextjs'
 import {
   Columns2Icon,
   CrosshairIcon,
+  ImageIcon,
   LayersIcon,
   MaximizeIcon,
   MinimizeIcon,
   MinusIcon,
   PlusIcon,
+  SaveIcon,
   XIcon,
 } from 'lucide-react'
 import type * as maplibregl from 'maplibre-gl'
+import Link from 'next/link'
 import {
   type ReactNode,
   type RefObject,
@@ -25,6 +29,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { CLERK_ORG_ROLES } from '@/lib/roles'
 
 type GeoportalToolbarProps = {
   getMap: () => maplibregl.Map | undefined
@@ -34,6 +39,8 @@ type GeoportalToolbarProps = {
   compareMode: boolean
   onEnterCompare: () => void
   onExitCompare: () => void
+  onExportPng: () => void
+  saveMapHref: string
 }
 
 export function GeoportalToolbar({
@@ -44,7 +51,11 @@ export function GeoportalToolbar({
   compareMode,
   onEnterCompare,
   onExitCompare,
+  onExportPng,
+  saveMapHref,
 }: GeoportalToolbarProps) {
+  const { has, isLoaded } = useAuth()
+  const isAdmin = isLoaded && (has?.({ role: CLERK_ORG_ROLES.admin }) ?? false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
@@ -96,7 +107,7 @@ export function GeoportalToolbar({
   }, [getMap])
 
   return (
-    <div className="absolute top-4 bg-background/80 backdrop-blur-sm rounded-full px-2 py-4 shadow-md right-4 z-20 flex flex-col gap-1.5">
+    <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5 rounded-full bg-background/80 px-2 py-4 shadow-md backdrop-blur-sm">
       <ToolbarButton title="Aproximar" onClick={zoomIn}>
         <PlusIcon />
       </ToolbarButton>
@@ -112,6 +123,14 @@ export function GeoportalToolbar({
       <ToolbarButton title="Localizar usuário" onClick={locateUser}>
         <CrosshairIcon />
       </ToolbarButton>
+      <ToolbarButton title="Exportar PNG" onClick={onExportPng}>
+        <ImageIcon />
+      </ToolbarButton>
+      {isAdmin && (
+        <ToolbarButton title="Salvar como mapa" href={saveMapHref}>
+          <SaveIcon />
+        </ToolbarButton>
+      )}
       <ToolbarButton title="Controle do mapa" onClick={onOpenSidebar}>
         <LayersIcon />
       </ToolbarButton>
@@ -136,28 +155,42 @@ function ToolbarButton({
   title,
   disabled,
   onClick,
+  href,
   children,
 }: {
   title: string
   disabled?: boolean
   onClick?: () => void
+  href?: string
   children: ReactNode
 }) {
+  const button = href ? (
+    <Button
+      asChild
+      size="icon"
+      className="rounded-full shadow-md"
+      title={title}
+      aria-label={title}
+    >
+      <Link href={href}>{children}</Link>
+    </Button>
+  ) : (
+    <Button
+      type="button"
+      size="icon"
+      className="rounded-full shadow-md"
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  )
+
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          size="icon"
-          className="rounded-full shadow-md"
-          disabled={disabled}
-          title={title}
-          aria-label={title}
-          onClick={onClick}
-        >
-          {children}
-        </Button>
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent side="left">{title}</TooltipContent>
     </Tooltip>
   )

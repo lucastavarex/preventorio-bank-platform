@@ -6,7 +6,7 @@ import {
   applyHiddenClasses,
   classifyColorExpression,
   classifyFilter,
-  hasGraduatedClassify,
+  hasClassify,
 } from '@/lib/classify'
 import type { LayerStyle } from '@/lib/supabase/types'
 
@@ -34,7 +34,7 @@ export function GeoJSONLayer({
   const layerType = style.type ?? detectGeometryType(data)
 
   const classify = useMemo(() => {
-    if (!hasGraduatedClassify(style)) return undefined
+    if (!hasClassify(style)) return undefined
     return applyHiddenClasses(style.classify, hiddenClassIndexes)
   }, [style, hiddenClassIndexes])
 

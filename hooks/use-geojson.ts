@@ -1,28 +1,26 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { getLayerGeojsonAccess } from '@/lib/actions/geojson'
 import { parseFeatureCollection } from '@/lib/geojson'
 import { queryKeys } from '@/lib/query/keys'
 
 export async function fetchGeojson(
-  storageBaseUrl: string,
-  path: string
+  layerId: string
 ): Promise<GeoJSON.FeatureCollection> {
-  const response = await fetch(`${storageBaseUrl}/${path}`)
+  const { url } = await getLayerGeojsonAccess(layerId)
+  const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`)
   }
   return parseFeatureCollection(await response.text())
 }
 
-export function useGeojson(
-  path: string | undefined,
-  storageBaseUrl: string | undefined
-) {
+export function useGeojson(layerId: string | undefined) {
   return useQuery({
-    queryKey: queryKeys.geojson.byPath(path ?? ''),
-    queryFn: () => fetchGeojson(storageBaseUrl!, path!),
-    enabled: Boolean(path && storageBaseUrl),
+    queryKey: queryKeys.geojson.byLayer(layerId ?? ''),
+    queryFn: () => fetchGeojson(layerId!),
+    enabled: Boolean(layerId),
     staleTime: Number.POSITIVE_INFINITY,
   })
 }
