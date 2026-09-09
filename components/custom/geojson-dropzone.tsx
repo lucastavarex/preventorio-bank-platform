@@ -29,6 +29,7 @@ export function GeojsonDropzone({
   featureCount,
   hasExistingFile = false,
   error,
+  required = false,
   onFile,
   onClear,
 }: GeojsonDropzoneProps) {
@@ -45,7 +46,9 @@ export function GeojsonDropzone({
 
   return (
     <Field data-invalid={error ? true : undefined}>
-      <FieldLabel htmlFor={inputId}>Arquivo GeoJSON</FieldLabel>
+      <FieldLabel htmlFor={inputId} required={required}>
+        Arquivo GeoJSON
+      </FieldLabel>
       {hasExistingFile && !file && (
         <FieldDescription>
           Mantendo o GeoJSON atual. Arraste outro arquivo para substituir.
@@ -69,6 +72,7 @@ export function GeojsonDropzone({
           type="button"
           variant="outline"
           aria-invalid={error ? true : undefined}
+          aria-required={required || undefined}
           onClick={() => inputRef.current?.click()}
           onDragEnter={event => {
             event.preventDefault()

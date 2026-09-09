@@ -1,6 +1,8 @@
 'use client'
 
-import { type ReactNode, useCallback, useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -17,6 +19,7 @@ import {
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
 } from '@/components/ui/field'
@@ -27,6 +30,10 @@ import {
   useCreateVocabularyTerm,
   useUpdateVocabularyTerm,
 } from '@/hooks/use-vocabularies'
+import {
+  createVocabularyTermFormSchema,
+  type VocabularyTermFormValues,
+} from '@/lib/schemas/vocabulary-term-form'
 import type { ProvenanceTerm } from '@/lib/supabase/types'
 import { VOCABULARIES, type VocabularyKind } from '@/lib/vocabularies'
 
@@ -44,26 +51,54 @@ export function VocabularyTermDialog({
 }: VocabularyTermDialogProps) {
   const vocabulary = VOCABULARIES[kind]
   const [open, setOpen] = useState(false)
-  const [isActive, setIsActive] = useState(term?.is_active ?? true)
   const createTerm = useCreateVocabularyTerm(kind)
   const updateTerm = useUpdateVocabularyTerm(kind)
   const isPending = createTerm.isPending || updateTerm.isPending
+  const isCreate = !term
+  const schema = useMemo(
+    () => createVocabularyTermFormSchema({ isCreate }),
+    [isCreate]
+  )
+
+  const form = useForm<VocabularyTermFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      label: term?.label ?? '',
+      slug: '',
+      description: term?.description ?? '',
+      sortOrder: term?.sort_order ?? 0,
+      isActive: term?.is_active ?? true,
+    },
+  })
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
       setOpen(next)
-      if (next) setIsActive(term?.is_active ?? true)
+      if (next) {
+        form.reset({
+          label: term?.label ?? '',
+          slug: '',
+          description: term?.description ?? '',
+          sortOrder: term?.sort_order ?? 0,
+          isActive: term?.is_active ?? true,
+        })
+      }
     },
-    [term]
+    [form, term]
   )
 
-  const handleSubmit = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
+  const onSubmit = useCallback(
+    async (values: VocabularyTermFormValues) => {
       if (isPending) return
 
-      const formData = new FormData(event.currentTarget)
-      formData.set('is_active', isActive ? 'on' : 'off')
+      const formData = new FormData()
+      formData.set('label', values.label)
+      formData.set('description', values.description)
+      formData.set('sort_order', String(values.sortOrder))
+      formData.set('is_active', values.isActive ? 'on' : 'off')
+      if (isCreate) {
+        formData.set('slug', values.slug)
+      }
 
       try {
         if (term) {
@@ -80,7 +115,7 @@ export function VocabularyTermDialog({
         )
       }
     },
-    [createTerm, isActive, isPending, term, updateTerm]
+    [createTerm, isCreate, isPending, term, updateTerm]
   )
 
   return (
@@ -95,24 +130,35 @@ export function VocabularyTermDialog({
         </DialogHeader>
 
         <form
-          key={open ? (term?.id ?? 'new') : 'closed'}
-          onSubmit={handleSubmit}
+          onSubmit={form.handleSubmit(onSubmit)}
           className="flex flex-col gap-4"
+          noValidate
         >
           <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="term-label">Rótulo</FieldLabel>
-              <Input
-                id="term-label"
-                name="label"
-                required
-                defaultValue={term?.label}
-                placeholder="Ex: Percepção de risco"
-              />
-              <FieldDescription>
-                Como o termo aparece no formulário e na ficha pública.
-              </FieldDescription>
-            </Field>
+            <Controller
+              name="label"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid || undefined}>
+                  <FieldLabel htmlFor="term-label" required>
+                    Rótulo
+                  </FieldLabel>
+                  <Input
+                    {...field}
+                    id="term-label"
+                    aria-invalid={fieldState.invalid || undefined}
+                    aria-required
+                    placeholder="Ex: Percepção de risco"
+                  />
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                  <FieldDescription>
+                    Como o termo aparece no formulário e na ficha pública.
+                  </FieldDescription>
+                </Field>
+              )}
+            />
 
             {term ? (
               <Field>
@@ -123,52 +169,91 @@ export function VocabularyTermDialog({
                 </FieldDescription>
               </Field>
             ) : (
-              <Field>
-                <FieldLabel htmlFor="term-slug">Identificador</FieldLabel>
-                <Input
-                  id="term-slug"
-                  name="slug"
-                  placeholder="gerado a partir do rótulo"
-                />
-                <FieldDescription>
-                  Valor gravado nas camadas. Depois de criado não muda mais.
-                </FieldDescription>
-              </Field>
+              <Controller
+                name="slug"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid || undefined}>
+                    <FieldLabel htmlFor="term-slug">Identificador</FieldLabel>
+                    <Input
+                      {...field}
+                      id="term-slug"
+                      aria-invalid={fieldState.invalid || undefined}
+                      placeholder="gerado a partir do rótulo"
+                    />
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                    <FieldDescription>
+                      Valor gravado nas camadas. Depois de criado não muda mais.
+                    </FieldDescription>
+                  </Field>
+                )}
+              />
             )}
 
-            <Field>
-              <FieldLabel htmlFor="term-description">Descrição</FieldLabel>
-              <Textarea
-                id="term-description"
-                name="description"
-                defaultValue={term?.description ?? ''}
-                placeholder="Nota interna sobre quando usar este termo"
-              />
-            </Field>
+            <Controller
+              name="description"
+              control={form.control}
+              render={({ field }) => (
+                <Field>
+                  <FieldLabel htmlFor="term-description">Descrição</FieldLabel>
+                  <Textarea
+                    {...field}
+                    id="term-description"
+                    placeholder="Nota interna sobre quando usar este termo"
+                  />
+                </Field>
+              )}
+            />
 
-            <Field>
-              <FieldLabel htmlFor="term-sort-order">Ordem</FieldLabel>
-              <Input
-                id="term-sort-order"
-                name="sort_order"
-                type="number"
-                defaultValue={term?.sort_order ?? 0}
-              />
-              <FieldDescription>
-                Menor primeiro na lista de opções.
-              </FieldDescription>
-            </Field>
+            <Controller
+              name="sortOrder"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid || undefined}>
+                  <FieldLabel htmlFor="term-sort-order">Ordem</FieldLabel>
+                  <Input
+                    id="term-sort-order"
+                    type="number"
+                    name={field.name}
+                    ref={field.ref}
+                    value={field.value}
+                    onBlur={field.onBlur}
+                    onChange={event => {
+                      const next = event.target.valueAsNumber
+                      field.onChange(Number.isFinite(next) ? next : 0)
+                    }}
+                    aria-invalid={fieldState.invalid || undefined}
+                  />
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                  <FieldDescription>
+                    Menor primeiro na lista de opções.
+                  </FieldDescription>
+                </Field>
+              )}
+            />
 
-            <Field orientation="horizontal">
-              <Checkbox
-                id="term-is-active"
-                checked={isActive}
-                onCheckedChange={checked => setIsActive(checked === true)}
-              />
-              <FieldLabel htmlFor="term-is-active">
-                Ativo (aparece como opção em novos layers)
-              </FieldLabel>
-            </Field>
+            <Controller
+              name="isActive"
+              control={form.control}
+              render={({ field }) => (
+                <Field orientation="horizontal">
+                  <Checkbox
+                    id="term-is-active"
+                    checked={field.value}
+                    onCheckedChange={checked =>
+                      field.onChange(checked === true)
+                    }
+                  />
+                  <FieldLabel htmlFor="term-is-active">
+                    Ativo (aparece como opção em novos layers)
+                  </FieldLabel>
+                </Field>
+              )}
+            />
           </FieldGroup>
 
           <DialogFooter>

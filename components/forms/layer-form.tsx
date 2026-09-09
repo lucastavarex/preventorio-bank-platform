@@ -1,6 +1,8 @@
 'use client'
 
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { GeojsonDropzone } from '@/components/custom/geojson-dropzone'
 import { ClassifyEditor } from '@/components/forms/classify-editor'
@@ -36,6 +38,10 @@ import { useCreateLayer, useUpdateLayer } from '@/hooks/use-layers'
 import { hasClassify, legendFromClassify } from '@/lib/classify'
 import { computeBBox, parseFeatureCollection } from '@/lib/geojson'
 import { isNextRedirect } from '@/lib/next-redirect'
+import {
+  createLayerFormSchema,
+  type LayerFormValues,
+} from '@/lib/schemas/layer-form'
 import type {
   Group,
   Layer,
@@ -61,7 +67,6 @@ export function LayerForm({
   const [preview, setPreview] = useState<GeoJSON.FeatureCollection | null>(null)
   const [savedPreview, setSavedPreview] =
     useState<GeoJSON.FeatureCollection | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [style, setStyle] = useState<LayerStyle>(defaultValues?.style ?? {})
   const [legend, setLegend] = useState<LegendConfig>(
     defaultValues?.legend ?? {}
@@ -72,8 +77,6 @@ export function LayerForm({
   const [popup, setPopup] = useState<LayerPopupConfig>(
     defaultValues?.popup ?? {}
   )
-  const [groupIds, setGroupIds] = useState<string[]>(defaultGroupIds ?? [])
-  const [isPrivate, setIsPrivate] = useState(defaultValues?.is_private ?? false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [confirmPublicOpen, setConfirmPublicOpen] = useState(false)
   const pendingFormDataRef = useRef<FormData | null>(null)
@@ -81,6 +84,27 @@ export function LayerForm({
   const updateLayer = useUpdateLayer(defaultValues?.id ?? '')
   const mutation = defaultValues?.id ? updateLayer : createLayer
   const geojsonQuery = useGeojson(defaultValues?.id)
+
+  const hasExistingFile = Boolean(defaultValues?.geojson_storage_path)
+  const requireGeojson = geojsonRequired && !hasExistingFile
+  const schema = useMemo(
+    () => createLayerFormSchema({ geojsonRequired: requireGeojson }),
+    [requireGeojson]
+  )
+
+  const form = useForm<LayerFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      title: defaultValues?.title ?? '',
+      description: defaultValues?.description ?? '',
+      notes: defaultValues?.notes ?? '',
+      groupIds: defaultGroupIds ?? [],
+      geojson: null,
+      isPrivate: defaultValues?.is_private ?? false,
+    },
+  })
+
+  const selectedFile = form.watch('geojson')
 
   useEffect(() => {
     if (!geojsonQuery.data || selectedFile) return
@@ -98,7 +122,10 @@ export function LayerForm({
     (file: File) => {
       const name = file.name.toLowerCase()
       if (!name.endsWith('.geojson') && !name.endsWith('.json')) {
-        setSelectedFile(null)
+        form.setValue('geojson', null, {
+          shouldDirty: true,
+          shouldValidate: true,
+        })
         setFileError('Envie um arquivo .geojson ou .json.')
         return
       }
@@ -108,10 +135,16 @@ export function LayerForm({
         try {
           const geojson = parseFeatureCollection(reader.result as string)
           setPreview(geojson)
-          setSelectedFile(file)
+          form.setValue('geojson', file, {
+            shouldDirty: true,
+            shouldValidate: true,
+          })
           setFileError(null)
         } catch (error) {
-          setSelectedFile(null)
+          form.setValue('geojson', null, {
+            shouldDirty: true,
+            shouldValidate: true,
+          })
           setPreview(savedPreview)
           setFileError(
             error instanceof Error ? error.message : 'Arquivo GeoJSON inválido.'
@@ -120,24 +153,14 @@ export function LayerForm({
       }
       reader.readAsText(file)
     },
-    [savedPreview]
+    [form, savedPreview]
   )
 
   const clearFile = useCallback(() => {
-    setSelectedFile(null)
+    form.setValue('geojson', null, { shouldDirty: true, shouldValidate: true })
     setFileError(null)
     setPreview(savedPreview)
-  }, [savedPreview])
-
-  const toggleGroup = useCallback((groupId: string, checked: boolean) => {
-    setGroupIds(prev =>
-      checked
-        ? prev.includes(groupId)
-          ? prev
-          : [...prev, groupId]
-        : prev.filter(id => id !== groupId)
-    )
-  }, [])
+  }, [form, savedPreview])
 
   const handleStyleChange = useCallback((next: LayerStyle) => {
     setStyle(next)
@@ -147,8 +170,11 @@ export function LayerForm({
   }, [])
 
   const buildFormData = useCallback(
-    (form: HTMLFormElement) => {
-      const formData = new FormData(form)
+    (values: LayerFormValues) => {
+      const formData = new FormData()
+      formData.set('title', values.title)
+      formData.set('description', values.description)
+      formData.set('notes', values.notes)
       const legendToSave = hasClassify(style)
         ? legendFromClassify(style.classify, style.type)
         : legend
@@ -156,17 +182,16 @@ export function LayerForm({
       formData.set('legend', JSON.stringify(legendToSave))
       formData.set('provenance', JSON.stringify(provenance))
       formData.set('popup', JSON.stringify(popup))
-      formData.set('is_private', isPrivate ? 'on' : '')
-      formData.delete('group_ids')
-      for (const id of groupIds) {
+      formData.set('is_private', values.isPrivate ? 'on' : '')
+      for (const id of values.groupIds) {
         formData.append('group_ids', id)
       }
-      if (selectedFile) {
-        formData.set('geojson', selectedFile)
+      if (values.geojson) {
+        formData.set('geojson', values.geojson)
       }
       return formData
     },
-    [selectedFile, style, legend, provenance, popup, groupIds, isPrivate]
+    [style, legend, provenance, popup]
   )
 
   const save = useCallback(
@@ -185,14 +210,13 @@ export function LayerForm({
     [mutation]
   )
 
-  const handleSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
+  const onSubmit = useCallback(
+    (values: LayerFormValues) => {
       if (mutation.isPending) return
 
-      const formData = buildFormData(event.currentTarget)
+      const formData = buildFormData(values)
 
-      if (!isPrivate) {
+      if (!values.isPrivate) {
         pendingFormDataRef.current = formData
         setConfirmPublicOpen(true)
         return
@@ -200,7 +224,7 @@ export function LayerForm({
 
       void save(formData)
     },
-    [mutation.isPending, buildFormData, isPrivate, save]
+    [mutation.isPending, buildFormData, save]
   )
 
   const handleConfirmPublic = useCallback(() => {
@@ -214,104 +238,160 @@ export function LayerForm({
     () => (preview ? computeBBox(preview) : null),
     [preview]
   )
-  const hasExistingFile = Boolean(defaultValues?.geojson_storage_path)
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-6"
+        noValidate
+      >
         <div className="grid gap-6 md:grid-cols-2">
           <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="title">Título</FieldLabel>
-              <Input
-                id="title"
-                name="title"
-                required
-                defaultValue={defaultValues?.title}
-                placeholder="Ex: Áreas de risco"
-              />
-            </Field>
-
-            <Field data-disabled={groups.length === 0 || undefined}>
-              <FieldLabel>Grupos</FieldLabel>
-              <FieldDescription>
-                O layer aparece no catálogo de todos os grupos marcados.
-              </FieldDescription>
-              {groups.length > 0 && (
-                <div className="flex flex-col gap-2 rounded-lg border p-3">
-                  {groups.map(group => {
-                    const inputId = `layer-group-${group.id}`
-                    return (
-                      <Field key={group.id} orientation="horizontal">
-                        <Checkbox
-                          id={inputId}
-                          checked={groupIds.includes(group.id)}
-                          onCheckedChange={checked =>
-                            toggleGroup(group.id, checked === true)
-                          }
-                        />
-                        <FieldLabel
-                          htmlFor={inputId}
-                          className="min-w-0 w-auto flex-1"
-                        >
-                          <span className="truncate">{group.title}</span>
-                        </FieldLabel>
-                      </Field>
-                    )
-                  })}
-                </div>
+            <Controller
+              name="title"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid || undefined}>
+                  <FieldLabel htmlFor="title" required>
+                    Título
+                  </FieldLabel>
+                  <Input
+                    {...field}
+                    id="title"
+                    aria-invalid={fieldState.invalid || undefined}
+                    aria-required
+                    placeholder="Ex: Áreas de risco"
+                  />
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                </Field>
               )}
-              {groups.length === 0 ? (
-                <FieldError>
-                  Crie um grupo antes de cadastrar um layer.
-                </FieldError>
-              ) : (
-                groupIds.length === 0 && (
-                  <FieldError>Selecione ao menos um grupo.</FieldError>
-                )
-              )}
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="description">Descrição</FieldLabel>
-              <Textarea
-                id="description"
-                name="description"
-                defaultValue={defaultValues?.description ?? ''}
-                placeholder="Descrição do layer"
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="notes">Anotações</FieldLabel>
-              <Textarea
-                id="notes"
-                name="notes"
-                defaultValue={defaultValues?.notes ?? ''}
-                placeholder="Anotações internas"
-              />
-            </Field>
-
-            <GeojsonDropzone
-              file={selectedFile}
-              featureCount={preview?.features.length}
-              hasExistingFile={hasExistingFile}
-              error={fileError}
-              required={geojsonRequired && !hasExistingFile}
-              onFile={applyFile}
-              onClear={clearFile}
             />
 
-            <Field orientation="horizontal">
-              <Checkbox
-                id="is_private"
-                checked={isPrivate}
-                onCheckedChange={checked => setIsPrivate(checked === true)}
-              />
-              <FieldLabel htmlFor="is_private">
-                Privado (visível apenas para membros e admins)
-              </FieldLabel>
-            </Field>
+            <Controller
+              name="groupIds"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field
+                  data-disabled={groups.length === 0 || undefined}
+                  data-invalid={
+                    groups.length === 0 || fieldState.invalid || undefined
+                  }
+                >
+                  <FieldLabel required>Grupos</FieldLabel>
+                  <FieldDescription>
+                    O layer aparece no catálogo de todos os grupos marcados.
+                  </FieldDescription>
+                  {groups.length > 0 && (
+                    <div className="flex flex-col gap-2 rounded-lg border p-3">
+                      {groups.map(group => {
+                        const inputId = `layer-group-${group.id}`
+                        return (
+                          <Field key={group.id} orientation="horizontal">
+                            <Checkbox
+                              id={inputId}
+                              checked={field.value.includes(group.id)}
+                              onCheckedChange={checked => {
+                                const selected = checked === true
+                                field.onChange(
+                                  selected
+                                    ? field.value.includes(group.id)
+                                      ? field.value
+                                      : [...field.value, group.id]
+                                    : field.value.filter(id => id !== group.id)
+                                )
+                              }}
+                            />
+                            <FieldLabel
+                              htmlFor={inputId}
+                              className="min-w-0 w-auto flex-1"
+                            >
+                              <span className="truncate">{group.title}</span>
+                            </FieldLabel>
+                          </Field>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {groups.length === 0 ? (
+                    <FieldError>
+                      Crie um grupo antes de cadastrar um layer.
+                    </FieldError>
+                  ) : (
+                    fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )
+                  )}
+                </Field>
+              )}
+            />
+
+            <Controller
+              name="description"
+              control={form.control}
+              render={({ field }) => (
+                <Field>
+                  <FieldLabel htmlFor="description">Descrição</FieldLabel>
+                  <Textarea
+                    {...field}
+                    id="description"
+                    placeholder="Descrição do layer"
+                  />
+                </Field>
+              )}
+            />
+
+            <Controller
+              name="notes"
+              control={form.control}
+              render={({ field }) => (
+                <Field>
+                  <FieldLabel htmlFor="notes">Anotações</FieldLabel>
+                  <Textarea
+                    {...field}
+                    id="notes"
+                    placeholder="Anotações internas"
+                  />
+                </Field>
+              )}
+            />
+
+            <Controller
+              name="geojson"
+              control={form.control}
+              render={({ fieldState }) => (
+                <GeojsonDropzone
+                  file={selectedFile}
+                  featureCount={preview?.features.length}
+                  hasExistingFile={hasExistingFile}
+                  error={fileError ?? fieldState.error?.message ?? null}
+                  required={requireGeojson}
+                  onFile={applyFile}
+                  onClear={clearFile}
+                />
+              )}
+            />
+
+            <Controller
+              name="isPrivate"
+              control={form.control}
+              render={({ field }) => (
+                <Field orientation="horizontal">
+                  <Checkbox
+                    id="is_private"
+                    checked={field.value}
+                    onCheckedChange={checked =>
+                      field.onChange(checked === true)
+                    }
+                  />
+                  <FieldLabel htmlFor="is_private">
+                    Privado (visível apenas para membros e admins)
+                  </FieldLabel>
+                </Field>
+              )}
+            />
 
             <ProvenanceEditor value={provenance} onChange={setProvenance} />
             <PopupEditor data={preview} value={popup} onChange={setPopup} />
@@ -337,12 +417,7 @@ export function LayerForm({
             type="submit"
             size="lg"
             className="h-12 min-w-56 px-10 text-base"
-            disabled={
-              mutation.isPending ||
-              groups.length === 0 ||
-              groupIds.length === 0 ||
-              (geojsonRequired && !hasExistingFile && !selectedFile)
-            }
+            disabled={mutation.isPending || groups.length === 0}
           >
             {mutation.isPending ? <Spinner data-icon="inline-start" /> : null}
             {mutation.isPending ? 'Salvando…' : 'Salvar'}

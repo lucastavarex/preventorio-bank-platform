@@ -1,15 +1,23 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useCallback } from 'react'
+import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { useCreateGroup, useUpdateGroup } from '@/hooks/use-groups'
 import { isNextRedirect } from '@/lib/next-redirect'
+import { type GroupFormValues, groupFormSchema } from '@/lib/schemas/group-form'
 import type { Group } from '@/lib/supabase/types'
 
 type GroupFormProps = {
@@ -17,18 +25,29 @@ type GroupFormProps = {
 }
 
 export function GroupForm({ defaultValues }: GroupFormProps) {
-  const [isPrivate, setIsPrivate] = useState(defaultValues?.is_private ?? false)
   const createGroup = useCreateGroup()
   const updateGroup = useUpdateGroup(defaultValues?.id ?? '')
   const mutation = defaultValues?.id ? updateGroup : createGroup
 
-  const handleSubmit = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
+  const form = useForm<GroupFormValues>({
+    resolver: zodResolver(groupFormSchema),
+    defaultValues: {
+      title: defaultValues?.title ?? '',
+      description: defaultValues?.description ?? '',
+      notes: defaultValues?.notes ?? '',
+      isPrivate: defaultValues?.is_private ?? false,
+    },
+  })
+
+  const onSubmit = useCallback(
+    async (values: GroupFormValues) => {
       if (mutation.isPending) return
 
-      const formData = new FormData(event.currentTarget)
-      formData.set('is_private', isPrivate ? 'on' : '')
+      const formData = new FormData()
+      formData.set('title', values.title)
+      formData.set('description', values.description)
+      formData.set('notes', values.notes)
+      formData.set('is_private', values.isPrivate ? 'on' : '')
 
       try {
         await mutation.mutateAsync(formData)
@@ -41,53 +60,82 @@ export function GroupForm({ defaultValues }: GroupFormProps) {
         )
       }
     },
-    [isPrivate, mutation]
+    [mutation]
   )
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      className="flex flex-col gap-4"
+      noValidate
+    >
       <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="title">Título</FieldLabel>
-          <Input
-            id="title"
-            name="title"
-            required
-            defaultValue={defaultValues?.title}
-            placeholder="Ex: Infraestrutura"
-          />
-        </Field>
+        <Controller
+          name="title"
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid || undefined}>
+              <FieldLabel htmlFor="title" required>
+                Título
+              </FieldLabel>
+              <Input
+                {...field}
+                id="title"
+                aria-invalid={fieldState.invalid || undefined}
+                aria-required
+                placeholder="Ex: Infraestrutura"
+              />
+              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+            </Field>
+          )}
+        />
 
-        <Field>
-          <FieldLabel htmlFor="description">Descrição</FieldLabel>
-          <Textarea
-            id="description"
-            name="description"
-            defaultValue={defaultValues?.description ?? ''}
-            placeholder="Descrição do grupo"
-          />
-        </Field>
+        <Controller
+          name="description"
+          control={form.control}
+          render={({ field }) => (
+            <Field>
+              <FieldLabel htmlFor="description">Descrição</FieldLabel>
+              <Textarea
+                {...field}
+                id="description"
+                placeholder="Descrição do grupo"
+              />
+            </Field>
+          )}
+        />
 
-        <Field>
-          <FieldLabel htmlFor="notes">Anotações</FieldLabel>
-          <Textarea
-            id="notes"
-            name="notes"
-            defaultValue={defaultValues?.notes ?? ''}
-            placeholder="Anotações internas (não visíveis no geoportal)"
-          />
-        </Field>
+        <Controller
+          name="notes"
+          control={form.control}
+          render={({ field }) => (
+            <Field>
+              <FieldLabel htmlFor="notes">Anotações</FieldLabel>
+              <Textarea
+                {...field}
+                id="notes"
+                placeholder="Anotações internas (não visíveis no geoportal)"
+              />
+            </Field>
+          )}
+        />
 
-        <Field orientation="horizontal">
-          <Checkbox
-            id="is_private"
-            checked={isPrivate}
-            onCheckedChange={checked => setIsPrivate(checked === true)}
-          />
-          <FieldLabel htmlFor="is_private">
-            Privado (visível apenas para usuários autenticados)
-          </FieldLabel>
-        </Field>
+        <Controller
+          name="isPrivate"
+          control={form.control}
+          render={({ field }) => (
+            <Field orientation="horizontal">
+              <Checkbox
+                id="is_private"
+                checked={field.value}
+                onCheckedChange={checked => field.onChange(checked === true)}
+              />
+              <FieldLabel htmlFor="is_private">
+                Privado (visível apenas para usuários autenticados)
+              </FieldLabel>
+            </Field>
+          )}
+        />
       </FieldGroup>
 
       <div className="flex justify-end pt-6">
