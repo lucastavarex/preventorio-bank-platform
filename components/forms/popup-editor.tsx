@@ -97,7 +97,7 @@ export function PopupEditor({ data, value, onChange }: PopupEditorProps) {
                   />
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="truncate font-mono text-xs">{key}</span>
-                    {checked && !allSelected && (
+                    {checked && (
                       <Input
                         value={selected.get(key) ?? ''}
                         onChange={event => setLabel(key, event.target.value)}
