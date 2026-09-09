@@ -11,6 +11,7 @@ import {
   MinusIcon,
   PlusIcon,
   SaveIcon,
+  Share2Icon,
   XIcon,
 } from 'lucide-react'
 import type * as maplibregl from 'maplibre-gl'
@@ -30,6 +31,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { CLERK_ORG_ROLES } from '@/lib/roles'
+import { SITE_NAME } from '@/lib/site'
 import { cn } from '@/lib/utils'
 
 type GeoportalToolbarProps = {
@@ -41,6 +43,7 @@ type GeoportalToolbarProps = {
   onEnterCompare: () => void
   onExitCompare: () => void
   onExportPng: () => void
+  onPrepareShare?: () => void
   saveMapHref: string
   hidden?: boolean
 }
@@ -54,6 +57,7 @@ export function GeoportalToolbar({
   onEnterCompare,
   onExitCompare,
   onExportPng,
+  onPrepareShare,
   saveMapHref,
   hidden,
 }: GeoportalToolbarProps) {
@@ -85,6 +89,26 @@ export function GeoportalToolbar({
       toast.error('Não foi possível alterar a tela cheia')
     }
   }, [fullscreenTargetRef])
+
+  const shareView = useCallback(async () => {
+    onPrepareShare?.()
+    const url = window.location.href
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: SITE_NAME, url })
+        return
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+    }
+
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Link da vista copiado')
+    } catch {
+      toast.error('Não foi possível copiar o link')
+    }
+  }, [onPrepareShare])
 
   const locateUser = useCallback(() => {
     const map = getMap()
@@ -133,6 +157,9 @@ export function GeoportalToolbar({
       </ToolbarButton>
       <ToolbarButton title="Exportar PNG" onClick={onExportPng}>
         <ImageIcon />
+      </ToolbarButton>
+      <ToolbarButton title="Compartilhar vista" onClick={shareView}>
+        <Share2Icon />
       </ToolbarButton>
       {isAdmin && (
         <ToolbarButton title="Salvar como mapa" href={saveMapHref}>

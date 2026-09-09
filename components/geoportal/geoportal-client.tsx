@@ -29,6 +29,8 @@ import { useGroupsWithLayers } from '@/hooks/use-layers'
 import { useMapForViewer } from '@/hooks/use-maps'
 import { hasClassify } from '@/lib/classify'
 import {
+  COMPARE_SLIDER_DEFAULT,
+  clampCompareSlider,
   compositionFromSavedMap,
   type GeoportalShareState,
   replaceGeoportalUrl,
@@ -55,6 +57,9 @@ export function GeoportalClient({
   initialOpacities,
   initialBasemapId,
   initialCamera,
+  initialCompare,
+  initialCompareSlider,
+  hasShareParams,
 }: {
   initialMapId?: string
   initialLayerId?: string
@@ -62,6 +67,9 @@ export function GeoportalClient({
   initialOpacities?: number[]
   initialBasemapId?: BasemapId
   initialCamera?: MapCamera
+  initialCompare?: boolean
+  initialCompareSlider?: number
+  hasShareParams?: boolean
 }) {
   const queryClient = useQueryClient()
   const groupsQuery = useGroupsWithLayers()
@@ -72,8 +80,10 @@ export function GeoportalClient({
   const mapRef = useRef<BaseMapHandle>(null)
   const compareRef = useRef<LayerCompareHandle>(null)
   const appliedViewRef = useRef(false)
+  const wantCompareRef = useRef(Boolean(initialCompare))
+  const compareWasActiveRef = useRef(false)
 
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [basemapId, setBasemapId] = useState<BasemapId>(
     initialBasemapId ?? DEFAULT_BASEMAP_ID
   )
@@ -81,6 +91,9 @@ export function GeoportalClient({
     initialCamera ?? null
   )
   const [compareMode, setCompareMode] = useState(false)
+  const [compareSlider, setCompareSlider] = useState(
+    () => initialCompareSlider ?? COMPARE_SLIDER_DEFAULT
+  )
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
     () => new Set()
   )
@@ -90,18 +103,21 @@ export function GeoportalClient({
   const [hiddenClasses, setHiddenClasses] = useState<
     Record<string, Set<number>>
   >({})
-  const [activeMapId, setActiveMapId] = useState<string | undefined>(
-    initialMapId
-  )
   const [factLayerId, setFactLayerId] = useState<string | null>(null)
   const [shareRevision, setShareRevision] = useState(0)
 
   useEffect(() => {
-    if (initialBasemapId) return
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      setSidebarOpen(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (hasShareParams) return
     setBasemapId(
       parseBasemapId(window.localStorage.getItem(BASEMAP_STORAGE_KEY))
     )
-  }, [initialBasemapId])
+  }, [hasShareParams])
 
   useEffect(() => {
     if (groupsQuery.isError) {
@@ -133,7 +149,6 @@ export function GeoportalClient({
     if (camera) setMapCamera(camera)
     setBasemapId(id)
     window.localStorage.setItem(BASEMAP_STORAGE_KEY, id)
-    setActiveMapId(undefined)
   }, [])
 
   const layersById = useMemo(() => {
@@ -233,7 +248,6 @@ export function GeoportalClient({
       return next
     })
     setLayerOrder(prev => prev.filter(id => id !== layer.id))
-    setActiveMapId(undefined)
   }, [])
 
   const toggleLayer = useCallback(
@@ -241,7 +255,6 @@ export function GeoportalClient({
       if (visibleLayersRef.current.has(layer.id)) disableLayer(layer)
       else {
         enableLayer(layer)
-        setActiveMapId(undefined)
       }
     },
     [enableLayer, disableLayer]
@@ -249,12 +262,10 @@ export function GeoportalClient({
 
   const reorderLayers = useCallback((nextOrder: string[]) => {
     setLayerOrder(nextOrder)
-    setActiveMapId(undefined)
   }, [])
 
   const setLayerOpacityValue = useCallback((layerId: string, value: number) => {
     setLayerOpacity(prev => ({ ...prev, [layerId]: value }))
-    setActiveMapId(undefined)
   }, [])
 
   const zoomToLayer = useCallback((layer: Layer) => {
@@ -298,9 +309,11 @@ export function GeoportalClient({
       setBasemapId(state.basemapId)
       if (state.camera) {
         setMapCamera({
-          ...state.camera,
-          bearing: 0,
-          pitch: 0,
+          longitude: state.camera.longitude,
+          latitude: state.camera.latitude,
+          zoom: state.camera.zoom,
+          bearing: state.camera.bearing ?? 0,
+          pitch: state.camera.pitch ?? 0,
         })
       }
     },
@@ -313,8 +326,12 @@ export function GeoportalClient({
     if (initialMapId) {
       if (savedMapQuery.isPending) return
       if (savedMapQuery.data) {
-        applyShareState(compositionFromSavedMap(savedMapQuery.data))
-        setActiveMapId(savedMapQuery.data.id)
+        const saved = compositionFromSavedMap(savedMapQuery.data)
+        applyShareState({
+          ...saved,
+          basemapId: initialBasemapId ?? saved.basemapId,
+          camera: initialCamera ?? saved.camera,
+        })
         appliedViewRef.current = true
         return
       }
@@ -369,47 +386,36 @@ export function GeoportalClient({
     zoomToLayer,
   ])
 
-  useEffect(() => {
-    if (!appliedViewRef.current) return
+  const flushShareUrl = useCallback(() => {
     const ids = layerOrder.filter(id => visibleLayers.has(id))
-    const saved = savedMapQuery.data
-    const matchesSaved =
-      Boolean(activeMapId) &&
-      saved != null &&
-      saved.id === activeMapId &&
-      saved.layers.length === ids.length &&
-      saved.layers.every((layer, index) => layer.id === ids[index]) &&
-      parseBasemapId(saved.basemap_id) === basemapId
-
     const liveCamera =
-      shareRevision >= 0
-        ? ((compareMode
-            ? compareRef.current?.getCamera()
-            : mapRef.current?.getCamera()) ?? mapCamera)
-        : mapCamera
+      (compareMode
+        ? compareRef.current?.getCamera()
+        : mapRef.current?.getCamera()) ?? mapCamera
 
-    const timer = window.setTimeout(() => {
-      replaceGeoportalUrl({
-        mapId: matchesSaved ? activeMapId : undefined,
-        layerIds: ids,
-        opacities: layerOpacity,
-        basemapId,
-        camera: liveCamera ?? undefined,
-      })
-    }, 400)
-
-    return () => window.clearTimeout(timer)
+    replaceGeoportalUrl({
+      layerIds: ids,
+      opacities: layerOpacity,
+      basemapId,
+      camera: liveCamera ?? undefined,
+      compare: compareMode,
+      compareSlider: clampCompareSlider(compareSlider),
+    })
   }, [
-    activeMapId,
     basemapId,
     compareMode,
+    compareSlider,
     layerOpacity,
     layerOrder,
     mapCamera,
-    savedMapQuery.data,
-    shareRevision,
     visibleLayers,
   ])
+
+  useEffect(() => {
+    if (!appliedViewRef.current || shareRevision < 0) return
+    const timer = window.setTimeout(flushShareUrl, 400)
+    return () => window.clearTimeout(timer)
+  }, [flushShareUrl, shareRevision])
 
   const downloadLayer = useCallback(
     async (layer: Layer) => {
@@ -458,8 +464,19 @@ export function GeoportalClient({
   const canCompare = Boolean(comparePair)
 
   useEffect(() => {
-    if (compareMode && !comparePair) {
+    if (compareMode) compareWasActiveRef.current = true
+  }, [compareMode])
+
+  useEffect(() => {
+    if (comparePair) {
+      if (wantCompareRef.current && !compareMode) {
+        setCompareMode(true)
+      }
+      return
+    }
+    if (compareWasActiveRef.current) {
       setCompareMode(false)
+      wantCompareRef.current = false
     }
   }, [compareMode, comparePair])
 
@@ -468,11 +485,13 @@ export function GeoportalClient({
     const camera = mapRef.current?.getCamera()
     if (camera) setMapCamera(camera)
     setPopup(null)
+    wantCompareRef.current = true
     setCompareMode(true)
   }, [comparePair])
 
   const exitCompareMode = useCallback((camera: MapCamera | undefined) => {
     if (camera) setMapCamera(camera)
+    wantCompareRef.current = false
     setCompareMode(false)
   }, [])
 
@@ -563,6 +582,9 @@ export function GeoportalClient({
               rightHiddenClasses={hiddenClasses[comparePair.rightLayer.id]}
               mapStyle={getBasemapStyle(basemapId)}
               camera={mapCamera}
+              sliderPct={compareSlider}
+              onSliderChange={setCompareSlider}
+              onMoveEnd={() => setShareRevision(value => value + 1)}
             />
           ) : (
             <BaseMap
@@ -646,6 +668,7 @@ export function GeoportalClient({
           onEnterCompare={enterCompareMode}
           onExitCompare={() => exitCompareMode(compareRef.current?.getCamera())}
           onExportPng={exportPng}
+          onPrepareShare={flushShareUrl}
           saveMapHref={saveMapHref}
         />
       </div>

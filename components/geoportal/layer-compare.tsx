@@ -9,7 +9,6 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
-  useState,
 } from 'react'
 import {
   BaseMap,
@@ -17,6 +16,11 @@ import {
   type MapCamera,
 } from '@/components/map/base-map'
 import { GeoJSONLayer } from '@/components/map/geojson-layer'
+import {
+  COMPARE_SLIDER_DEFAULT,
+  COMPARE_SLIDER_MAX,
+  COMPARE_SLIDER_MIN,
+} from '@/lib/geoportal-url'
 import type { Layer } from '@/lib/supabase/types'
 
 type LayerCompareProps = {
@@ -30,11 +34,18 @@ type LayerCompareProps = {
   rightHiddenClasses?: Set<number>
   mapStyle: StyleSpecification
   camera: MapCamera | null
+  sliderPct?: number
+  onSliderChange?: (value: number) => void
+  onMoveEnd?: (camera: MapCamera) => void
 }
 
 export type LayerCompareHandle = {
   getMap: () => MaplibreMap | undefined
   getCamera: () => MapCamera | undefined
+}
+
+function clampSlider(value: number) {
+  return Math.min(COMPARE_SLIDER_MAX, Math.max(COMPARE_SLIDER_MIN, value))
 }
 
 export const LayerCompare = forwardRef<LayerCompareHandle, LayerCompareProps>(
@@ -50,6 +61,9 @@ export const LayerCompare = forwardRef<LayerCompareHandle, LayerCompareProps>(
       rightHiddenClasses,
       mapStyle,
       camera,
+      sliderPct = COMPARE_SLIDER_DEFAULT,
+      onSliderChange,
+      onMoveEnd,
     },
     ref
   ) {
@@ -57,7 +71,6 @@ export const LayerCompare = forwardRef<LayerCompareHandle, LayerCompareProps>(
     const leftMapRef = useRef<BaseMapHandle>(null)
     const rightMapRef = useRef<BaseMapHandle>(null)
     const syncingRef = useRef(false)
-    const [sliderPct, setSliderPct] = useState(50)
 
     useEffect(() => {
       let cancelled = false
@@ -112,13 +125,16 @@ export const LayerCompare = forwardRef<LayerCompareHandle, LayerCompareProps>(
       }
     }, [])
 
-    const updateSliderFromClientX = useCallback((clientX: number) => {
-      const el = containerRef.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      const pct = ((clientX - rect.left) / rect.width) * 100
-      setSliderPct(Math.min(90, Math.max(10, pct)))
-    }, [])
+    const updateSliderFromClientX = useCallback(
+      (clientX: number) => {
+        const el = containerRef.current
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        const pct = ((clientX - rect.left) / rect.width) * 100
+        onSliderChange?.(clampSlider(pct))
+      },
+      [onSliderChange]
+    )
 
     const onSliderPointerDown = useCallback(
       (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -153,6 +169,7 @@ export const LayerCompare = forwardRef<LayerCompareHandle, LayerCompareProps>(
             mapStyle={mapStyle}
             camera={camera}
             showControls={false}
+            onMoveEnd={onMoveEnd}
           >
             <GeoJSONLayer
               id={`compare-left-${leftLayer.id}`}
@@ -188,8 +205,8 @@ export const LayerCompare = forwardRef<LayerCompareHandle, LayerCompareProps>(
 
         <div
           role="slider"
-          aria-valuemin={10}
-          aria-valuemax={90}
+          aria-valuemin={COMPARE_SLIDER_MIN}
+          aria-valuemax={COMPARE_SLIDER_MAX}
           aria-valuenow={Math.round(sliderPct)}
           aria-label="Comparar layers"
           tabIndex={0}
@@ -197,8 +214,12 @@ export const LayerCompare = forwardRef<LayerCompareHandle, LayerCompareProps>(
           style={{ left: `${sliderPct}%` }}
           onPointerDown={onSliderPointerDown}
           onKeyDown={e => {
-            if (e.key === 'ArrowLeft') setSliderPct(p => Math.max(10, p - 2))
-            if (e.key === 'ArrowRight') setSliderPct(p => Math.min(90, p + 2))
+            if (e.key === 'ArrowLeft') {
+              onSliderChange?.(clampSlider(sliderPct - 2))
+            }
+            if (e.key === 'ArrowRight') {
+              onSliderChange?.(clampSlider(sliderPct + 2))
+            }
           }}
         >
           <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-background shadow-md" />

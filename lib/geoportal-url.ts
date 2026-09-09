@@ -6,6 +6,10 @@ import {
 import { ROUTES } from '@/lib/site'
 import type { SavedMap, SavedMapCamera } from '@/lib/supabase/types'
 
+export const COMPARE_SLIDER_MIN = 10
+export const COMPARE_SLIDER_MAX = 90
+export const COMPARE_SLIDER_DEFAULT = 50
+
 export type GeoportalSearchInput = {
   map?: string
   layer?: string
@@ -15,6 +19,18 @@ export type GeoportalSearchInput = {
   lng?: string
   lat?: string
   z?: string
+  p?: string
+  r?: string
+  c?: string
+  cs?: string
+}
+
+export type GeoportalShareCamera = {
+  longitude: number
+  latitude: number
+  zoom: number
+  bearing: number
+  pitch: number
 }
 
 export type GeoportalShareState = {
@@ -22,14 +38,66 @@ export type GeoportalShareState = {
   layerIds: string[]
   opacities: Record<string, number>
   basemapId: BasemapId
-  camera?: Pick<SavedMapCamera, 'longitude' | 'latitude' | 'zoom'> & {
-    longitude: number
-    latitude: number
-    zoom: number
-  }
+  camera?: GeoportalShareCamera
+  compare?: boolean
+  compareSlider?: number
 }
 
-export function parseGeoportalSearch(params: GeoportalSearchInput) {
+export type ParsedGeoportalSearch = {
+  mapId?: string
+  layerId?: string
+  layerIds?: string[]
+  opacities?: number[]
+  basemapId?: BasemapId
+  camera?: GeoportalShareCamera
+  compare?: boolean
+  compareSlider?: number
+}
+
+function parseOptionalNumber(value: string | undefined) {
+  const parsed = Number.parseFloat(value ?? '')
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+export function clampCompareSlider(value: number) {
+  return Math.min(
+    COMPARE_SLIDER_MAX,
+    Math.max(COMPARE_SLIDER_MIN, Math.round(value))
+  )
+}
+
+function hasShareableView(state: GeoportalShareState) {
+  return (
+    state.layerIds.length > 0 || Boolean(state.camera) || Boolean(state.compare)
+  )
+}
+
+export function hasGeoportalShareParams(parsed: ParsedGeoportalSearch) {
+  return Boolean(
+    parsed.mapId ||
+      parsed.layerId ||
+      parsed.layerIds?.length ||
+      parsed.basemapId ||
+      parsed.camera ||
+      parsed.compare
+  )
+}
+
+function writeCamera(
+  params: URLSearchParams,
+  camera: GeoportalShareCamera | undefined
+) {
+  if (!camera) return
+  params.set('lng', camera.longitude.toFixed(5))
+  params.set('lat', camera.latitude.toFixed(5))
+  params.set('z', camera.zoom.toFixed(2))
+  if (camera.pitch) params.set('p', camera.pitch.toFixed(2))
+  if (camera.bearing) params.set('r', camera.bearing.toFixed(2))
+}
+
+export function parseGeoportalSearch(
+  params: GeoportalSearchInput
+): ParsedGeoportalSearch {
   const layerIds = (params.layers ?? '')
     .split(',')
     .map(id => id.trim())
@@ -38,9 +106,13 @@ export function parseGeoportalSearch(params: GeoportalSearchInput) {
     .split(',')
     .map(value => Number.parseInt(value, 10))
     .filter(value => Number.isFinite(value))
-  const longitude = Number.parseFloat(params.lng ?? '')
-  const latitude = Number.parseFloat(params.lat ?? '')
-  const zoom = Number.parseFloat(params.z ?? '')
+  const longitude = parseOptionalNumber(params.lng)
+  const latitude = parseOptionalNumber(params.lat)
+  const zoom = parseOptionalNumber(params.z)
+  const bearing = parseOptionalNumber(params.r) ?? 0
+  const pitch = parseOptionalNumber(params.p) ?? 0
+  const compare = params.c === '1'
+  const compareSliderRaw = parseOptionalNumber(params.cs)
 
   return {
     mapId: params.map || undefined,
@@ -49,22 +121,19 @@ export function parseGeoportalSearch(params: GeoportalSearchInput) {
     opacities: opacities.length > 0 ? opacities : undefined,
     basemapId: params.b ? parseBasemapId(params.b) : undefined,
     camera:
-      Number.isFinite(longitude) &&
-      Number.isFinite(latitude) &&
-      Number.isFinite(zoom)
-        ? { longitude, latitude, zoom, bearing: 0, pitch: 0 }
+      longitude != null && latitude != null && zoom != null
+        ? { longitude, latitude, zoom, bearing, pitch }
+        : undefined,
+    compare: compare || undefined,
+    compareSlider:
+      compare && compareSliderRaw != null
+        ? clampCompareSlider(compareSliderRaw)
         : undefined,
   }
 }
 
 export function buildGeoportalSearch(state: GeoportalShareState) {
   const params = new URLSearchParams()
-
-  if (state.mapId) {
-    params.set('map', state.mapId)
-    const query = params.toString()
-    return query ? `?${query}` : ''
-  }
 
   if (state.layerIds.length > 0) {
     params.set('layers', state.layerIds.join(','))
@@ -76,14 +145,20 @@ export function buildGeoportalSearch(state: GeoportalShareState) {
     }
   }
 
-  if (state.basemapId !== DEFAULT_BASEMAP_ID) {
+  if (hasShareableView(state) || state.basemapId !== DEFAULT_BASEMAP_ID) {
     params.set('b', state.basemapId)
   }
 
-  if (state.camera) {
-    params.set('lng', state.camera.longitude.toFixed(5))
-    params.set('lat', state.camera.latitude.toFixed(5))
-    params.set('z', state.camera.zoom.toFixed(2))
+  writeCamera(params, state.camera)
+
+  if (state.compare) {
+    params.set('c', '1')
+    const slider = clampCompareSlider(
+      state.compareSlider ?? COMPARE_SLIDER_DEFAULT
+    )
+    if (slider !== COMPARE_SLIDER_DEFAULT) {
+      params.set('cs', String(slider))
+    }
   }
 
   const query = params.toString()
@@ -111,11 +186,7 @@ export function savedMapNewPath(state: GeoportalShareState) {
     )
   }
   params.set('b', state.basemapId)
-  if (state.camera) {
-    params.set('lng', state.camera.longitude.toFixed(5))
-    params.set('lat', state.camera.latitude.toFixed(5))
-    params.set('z', state.camera.zoom.toFixed(2))
-  }
+  writeCamera(params, state.camera)
   const query = params.toString()
   return `/dashboard/maps/new${query ? `?${query}` : ''}`
 }

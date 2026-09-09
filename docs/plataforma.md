@@ -104,7 +104,7 @@ Arquivos centrais: `components/geoportal/geoportal-client.tsx`, sidebar, toolbar
 ### Visualização
 
 - Mapa em tela cheia, centro no Preventório
-- Basemap OSM ou satélite (persistido em `localStorage`)
+- Basemap OSM ou satélite (na URL quando há vista compartilhada; senão `localStorage`)
 - Catálogo por grupos, busca por nome, ligar/desligar camadas
 - Várias camadas ao mesmo tempo, ordem por arraste, opacidade
 - Zoom para a extensão (`bbox`) ao clicar no nome
@@ -116,22 +116,26 @@ Arquivos centrais: `components/geoportal/geoportal-client.tsx`, sidebar, toolbar
 
 ### URL compartilhável
 
-Precedência: `map` > `layers` > `layer`.
+Precedência na **entrada**: `map` > `layers` > `layer`. Depois do restore, a URL ao vivo é o snapshot completo (não colapsa em `?map=`).
 
 | Parâmetro | Significado |
 |-----------|-------------|
-| `map` | UUID de um mapa salvo |
+| `map` | UUID de um mapa salvo (atalho de carga; overlays de câmera/basemap/compare da query prevalecem) |
 | `layer` | Liga e foca uma camada (deep link antigo) |
 | `layers` | IDs na ordem baixo → cima, separados por vírgula |
 | `o` | Opacidades 0–100, na mesma ordem de `layers` (omitido se todas forem 100) |
-| `b` | `streets` ou `satellite` |
-| `lng`, `lat`, `z` | Câmera |
+| `b` | `streets` ou `satellite` (sempre escrito na vista compartilhada) |
+| `lng`, `lat`, `z` | Centro e zoom |
+| `p` | Pitch (omitido se 0) |
+| `r` | Bearing / rotação (omitido se 0; `b` já é basemap) |
+| `c` | `1` se o modo de comparação estiver ativo |
+| `cs` | Posição do swipe 10–90 (omitido se 50 ou compare off) |
 
 Exemplos:
 
 - `/geoportal?layer=<uuid>`
 - `/geoportal?map=<uuid>`
-- `/geoportal?layers=id1,id2&o=100,60&b=satellite`
+- `/geoportal?layers=id1,id2&o=100,60&b=satellite&lng=-43.10000&lat=-22.93554&z=16.40&p=45.00&r=12.00&c=1&cs=35`
 
 A vista atual é escrita na URL com `history.replaceState` (sem recarregar a página).
 
@@ -289,6 +293,6 @@ Possíveis trabalhos futuros: serviços OGC, tiles, dimensão temporal, coleta e
 1. Camada com ficha de proveniência aparece no geoportal público; `notes` não aparece
 2. Camada categórica pinta e filtra na legenda; camada graduada antiga não quebra
 3. Anônimo não baixa GeoJSON de camada privada; membro autenticado carrega
-4. `/geoportal?map=` restaura overlay; copiar URL com `layers=` reproduz a vista
+4. `/geoportal?map=` restaura overlay; copiar a URL ao vivo (`layers`, `o`, `b`, câmera, `c`/`cs`) reproduz a vista, inclusive pitch e compare
 5. PNG baixa a tela atual; popup mostra só os campos escolhidos (e foto, se houver URL)
 6. Admin cria/edita um termo em `/dashboard/vocabularios`; o select do layer e a ficha pública passam a mostrar o rótulo novo. Excluir um termo em uso é bloqueado.
