@@ -44,7 +44,7 @@ Firebase e Deck.GL **não** são usados. A proposta original citava esses itens;
 
 ## 3. Modelo de dados
 
-Schema em `supabase/migration.sql`. Bancos que já existiam antes das features de TCC precisam do patch `supabase/patch-tcc-features.sql`; bancos anteriores ao N:N camada↔grupo precisam de `supabase/patch-layer-groups.sql`.
+Schema em `supabase/migration.sql`. Bancos que já existiam antes das features de TCC precisam do patch `supabase/patch-tcc-features.sql`; bancos anteriores ao N:N camada↔grupo precisam de `supabase/patch-layer-groups.sql`; bancos anteriores aos vocabulários de proveniência precisam de `supabase/patch-provenance-vocabularies.sql`.
 
 ### 3.1 Grupos (`groups`)
 
@@ -79,11 +79,20 @@ O vínculo camada↔grupo é N:N: uma camada pode aparecer no catálogo de vári
 
 Uma composição publicável: conjunto de camadas + ordem + opacidades + basemap + câmera opcional. Não é uma nova geometria; é um “mapa de leitura” no sentido do artigo (sobreposição de camadas).
 
-### 3.5 Privacidade
+### 3.5 Vocabulários de proveniência
+
+Seis tabelas de apoio alimentam os selects da ficha (`provenance_sources`, `provenance_themes`, `provenance_hazards`, `participation_levels`, `provenance_licenses`, `provenance_producers`). Mesma forma em todas: `slug`, `label`, `description`, `is_active`, `sort_order`.
+
+- `layers.provenance` guarda o **slug** do termo, nunca o uuid. Renomear o rótulo não quebra camadas antigas; o identificador, depois de criado, não muda.
+- Leitura é pública (a ficha do geoportal precisa dos rótulos). Escrita só `org:admin`.
+- Apagar um termo em uso é bloqueado; dá para desativar (`is_active = false`) — some do select, mas o rótulo continua nas camadas que já o usam.
+- CRUD em `/dashboard/vocabularios`. Registro das rotas ↔ tabelas em `lib/vocabularies.ts`.
+
+### 3.6 Privacidade
 
 - Anônimo: só linhas com `is_private = false`
 - Membro ou admin autenticado: vê também o privado
-- Escrita (grupos, camadas, mapas, upload): só `org:admin`
+- Escrita (grupos, camadas, mapas, vocabulários, upload): só `org:admin`
 - Arquivos GeoJSON **não** são públicos no bucket. A leitura passa por URL assinada gerada no servidor (`lib/actions/geojson.ts`), depois de conferir se a camada pode ser vista
 
 ---
@@ -137,21 +146,23 @@ A vista atual é escrita na URL com `history.replaceState` (sem recarregar a pá
 
 Objetivo acadêmico: a camada não é só um arquivo no mapa; carrega o contexto de coprodução do URBE Latam / LABIS (fonte, método, grau de participação). Vocabulário alinhado ao capítulo *Mapeando o (in)visível*.
 
-Campos em `layers.provenance` (`lib/provenance.ts`, `lib/supabase/types.ts`):
+Campos em `layers.provenance` (`lib/provenance.ts`, `lib/supabase/types.ts`). Os valores de lista vêm das tabelas do §3.5, não mais de constantes no código.
 
-| Campo | Valores |
-|-------|---------|
-| `source` | `osm`, `kobo`, `workshop`, `qgis`, `other` |
+| Campo | Tipo |
+|-------|------|
+| `source` | slug de `provenance_sources` |
 | `sourceDetail` | texto (ex.: entrevistas Kobo, oficina na UMEI) |
 | `period` | texto (ex.: abril de 2022) |
-| `producers` | texto (LABIS, BCP, URBE Latam, AMMP…) |
-| `theme` | vulnerabilidade física, percepção de risco, infraestrutura, cruzamento, outro |
-| `hazard` | deslizamento de terra, de rocha, eventos hídricos, não se aplica |
-| `participationLevel` | baixo, médio, alto |
-| `license` | texto |
+| `producers` | array de slugs de `provenance_producers` |
+| `theme` | slug de `provenance_themes` |
+| `hazard` | slug de `provenance_hazards` |
+| `participationLevel` | slug de `participation_levels` |
+| `license` | slug de `provenance_licenses` |
 | `usageRestriction` | texto (ex.: dados de domicílio só para pesquisa) |
 
-- **Admin:** editor no formulário da camada (`components/forms/provenance-editor.tsx`)
+Seed inicial (fonte, tema, perigo, participação) replica o vocabulário que era hardcoded. Licença e responsáveis começam vazios num banco novo; o patch promove o texto livre já gravado nas camadas.
+
+- **Admin:** vocabulários em `/dashboard/vocabularios`; editor da camada em `components/forms/provenance-editor.tsx` (licença é select; responsáveis são multi-seleção)
 - **Público:** ícone de informação na lista de camadas abre a ficha (`components/geoportal/layer-fact-sheet.tsx`). `notes` não entra
 
 ---
@@ -217,6 +228,7 @@ Se nenhum campo for marcado, o popup mostra tudo (compatível com camadas antiga
 | `/dashboard/groups` | CRUD de grupos |
 | `/dashboard/layers` | CRUD de camadas (upload GeoJSON, estilo, classificação, proveniência, popup) |
 | `/dashboard/maps` | CRUD de composições |
+| `/dashboard/vocabularios` | CRUD dos vocabulários da ficha de proveniência |
 | `/dashboard/artigo` | PDF do capítulo |
 | `/dashboard/conta` | Conta Clerk |
 | `/sobre` | Página pública do TCC / origem das camadas |
@@ -230,16 +242,19 @@ A gestão de usuários no Clerk Dashboard permanece fora do app (`/dashboard/geo
 ## 11. Mapa de arquivos (orientação)
 
 ```
-lib/supabase/types.ts          tipos (style, provenance, popup, maps)
+lib/supabase/types.ts          tipos (style, provenance, popup, maps, termos)
 lib/classify.ts                paletas, graduada, categórica, expressões MapLibre
-lib/provenance.ts              vocabulário da ficha
+lib/provenance.ts              normalização e rótulos da ficha
+lib/vocabularies.ts            registro rota ↔ tabela ↔ campo JSON
 lib/geoportal-url.ts           parse/serialize da query string
 lib/actions/layers.ts          CRUD camadas + catálogo do geoportal
 lib/actions/maps.ts            CRUD mapas + leitura no viewer
+lib/actions/vocabularies.ts    CRUD dos vocabulários da ficha
 lib/actions/geojson.ts         URL assinada
 supabase/migration.sql         schema completo (banco novo)
 supabase/patch-tcc-features.sql  patch (banco que já existia)
 supabase/patch-layer-groups.sql  patch (camada em vários grupos)
+supabase/patch-provenance-vocabularies.sql  patch (vocabulários da ficha)
 ```
 
 ---
@@ -248,7 +263,7 @@ supabase/patch-layer-groups.sql  patch (camada em vários grupos)
 
 **Banco novo:** rode `supabase/migration.sql` no SQL Editor.
 
-**Banco que já tinha grupos/camadas:** rode `supabase/patch-tcc-features.sql` e depois `supabase/patch-layer-groups.sql`. Sem o primeiro, listar camadas ou salvar layer falha (faltam `provenance`, `popup` e a tabela `maps`), e o GeoJSON continua publicamente listável. Sem o segundo, o app quebra ao ler grupos de uma camada — o patch cria `layer_groups`, copia os vínculos de `layers.group_id` e só então derruba a coluna.
+**Banco que já tinha grupos/camadas:** rode `supabase/patch-tcc-features.sql`, depois `supabase/patch-layer-groups.sql`, depois `supabase/patch-provenance-vocabularies.sql`. Sem o primeiro, listar camadas ou salvar layer falha (faltam `provenance`, `popup` e a tabela `maps`), e o GeoJSON continua publicamente listável. Sem o segundo, o app quebra ao ler grupos de uma camada — o patch cria `layer_groups`, copia os vínculos de `layers.group_id` e só então derruba a coluna. Sem o terceiro, o CRUD de vocabulários e os selects da proveniência falham (as seis tabelas não existem), e `license`/`producers` continuam como texto livre.
 
 Depois dos patches, recarregue o app.
 
@@ -276,3 +291,4 @@ Possíveis trabalhos futuros: serviços OGC, tiles, dimensão temporal, coleta e
 3. Anônimo não baixa GeoJSON de camada privada; membro autenticado carrega
 4. `/geoportal?map=` restaura overlay; copiar URL com `layers=` reproduz a vista
 5. PNG baixa a tela atual; popup mostra só os campos escolhidos (e foto, se houver URL)
+6. Admin cria/edita um termo em `/dashboard/vocabularios`; o select do layer e a ficha pública passam a mostrar o rótulo novo. Excluir um termo em uso é bloqueado.

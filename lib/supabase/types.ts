@@ -6,6 +6,41 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// The six provenance vocabularies share one shape: `slug` is what
+// layers.provenance stores, `label` is what the UI renders.
+export type ProvenanceTermTable = {
+  Row: {
+    id: string
+    slug: string
+    label: string
+    description: string | null
+    is_active: boolean
+    sort_order: number
+    created_at: string
+    updated_at: string
+  }
+  Insert: {
+    id?: string
+    slug: string
+    label: string
+    description?: string | null
+    is_active?: boolean
+    sort_order?: number
+    created_at?: string
+    updated_at?: string
+  }
+  Update: {
+    id?: string
+    slug?: string
+    label?: string
+    description?: string | null
+    is_active?: boolean
+    sort_order?: number
+    updated_at?: string
+  }
+  Relationships: []
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -157,6 +192,12 @@ export interface Database {
         }
         Relationships: []
       }
+      provenance_sources: ProvenanceTermTable
+      provenance_themes: ProvenanceTermTable
+      provenance_hazards: ProvenanceTermTable
+      participation_levels: ProvenanceTermTable
+      provenance_licenses: ProvenanceTermTable
+      provenance_producers: ProvenanceTermTable
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -218,28 +259,15 @@ export type LegendItem = {
   type?: 'fill' | 'line' | 'circle'
 }
 
-export type ProvenanceSource = 'osm' | 'kobo' | 'workshop' | 'qgis' | 'other'
-export type ProvenanceTheme =
-  | 'physical_vulnerability'
-  | 'risk_perception'
-  | 'infrastructure'
-  | 'overlay'
-  | 'other'
-export type ProvenanceHazard =
-  | 'landslide'
-  | 'rockfall'
-  | 'hydrological'
-  | 'none'
-export type ParticipationLevel = 'low' | 'medium' | 'high'
-
+// Every id below is a term slug from the matching vocabulary table.
 export type LayerProvenance = {
-  source?: ProvenanceSource
+  source?: string
   sourceDetail?: string
   period?: string
-  producers?: string
-  theme?: ProvenanceTheme
-  hazard?: ProvenanceHazard
-  participationLevel?: ParticipationLevel
+  producers?: string[]
+  theme?: string
+  hazard?: string
+  participationLevel?: string
   license?: string
   usageRestriction?: string
 }
@@ -270,6 +298,9 @@ export type SavedMapCamera = {
 export type Group = Database['public']['Tables']['groups']['Row']
 export type Layer = Database['public']['Tables']['layers']['Row']
 export type SavedMap = Database['public']['Tables']['maps']['Row']
+export type ProvenanceTerm = ProvenanceTermTable['Row']
+export type ProvenanceTermInsert = ProvenanceTermTable['Insert']
+export type ProvenanceTermUpdate = ProvenanceTermTable['Update']
 export type LayerGroupRef = Pick<Group, 'id' | 'title'>
 export type LayerWithGroups = Layer & {
   groups: LayerGroupRef[]

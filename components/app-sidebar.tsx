@@ -65,6 +65,11 @@ const data: {
           url: '/dashboard/maps',
           adminOnly: true,
         },
+        {
+          title: 'Vocabulários',
+          url: '/dashboard/vocabularios',
+          adminOnly: true,
+        },
       ],
     },
     {

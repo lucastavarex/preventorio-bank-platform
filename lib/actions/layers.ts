@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { getProvenanceVocabularies } from '@/lib/actions/vocabularies'
 import { computeBBox, parseFeatureCollection } from '@/lib/geojson'
+import { normalizeProvenance } from '@/lib/provenance'
 import { canReadPrivate, requireAdmin } from '@/lib/roles.server'
 import {
   createAnonServerClient,
@@ -133,6 +135,11 @@ function parseJsonField<T>(raw: FormDataEntryValue | null, fallback: T): T {
   }
 }
 
+async function parseProvenanceField(raw: FormDataEntryValue | null) {
+  const parsed = parseJsonField<LayerProvenance>(raw, {})
+  return normalizeProvenance(parsed, await getProvenanceVocabularies())
+}
+
 async function parseUploadedGeojson(file: File) {
   const text = await file.text()
   const geojson = parseFeatureCollection(text)
@@ -208,7 +215,7 @@ export async function createLayer(formData: FormData) {
     is_private: formData.get('is_private') === 'on',
     style: styleRaw ? (JSON.parse(styleRaw) as LayerStyle) : {},
     legend: legendRaw ? (JSON.parse(legendRaw) as LegendConfig) : {},
-    provenance: parseJsonField<LayerProvenance>(formData.get('provenance'), {}),
+    provenance: await parseProvenanceField(formData.get('provenance')),
     popup: parseJsonField<LayerPopupConfig>(formData.get('popup'), {}),
     geojson_storage_path: path,
     bbox,
@@ -252,7 +259,7 @@ export async function updateLayer(id: string, formData: FormData) {
     description: (formData.get('description') as string) || null,
     notes: (formData.get('notes') as string) || null,
     is_private: formData.get('is_private') === 'on',
-    provenance: parseJsonField<LayerProvenance>(formData.get('provenance'), {}),
+    provenance: await parseProvenanceField(formData.get('provenance')),
     popup: parseJsonField<LayerPopupConfig>(formData.get('popup'), {}),
     updated_at: new Date().toISOString(),
     ...(styleRaw && { style: JSON.parse(styleRaw) as LayerStyle }),

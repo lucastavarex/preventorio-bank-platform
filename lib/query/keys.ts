@@ -23,6 +23,14 @@ export const queryKeys = {
     all: ['geojson'] as const,
     byLayer: (layerId: string) => [...queryKeys.geojson.all, layerId] as const,
   },
+  vocabularies: {
+    all: ['vocabularies'] as const,
+    /** Every vocabulary at once, for the layer form and the public fact sheet. */
+    provenance: () => [...queryKeys.vocabularies.all, 'provenance'] as const,
+    terms: (kind: string) =>
+      [...queryKeys.vocabularies.all, 'terms', kind] as const,
+    counts: () => [...queryKeys.vocabularies.all, 'counts'] as const,
+  },
   maps: {
     all: ['maps'] as const,
     lists: () => [...queryKeys.maps.all, 'list'] as const,

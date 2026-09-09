@@ -1,48 +1,91 @@
-import type {
-  LayerProvenance,
-  ParticipationLevel,
-  ProvenanceHazard,
-  ProvenanceSource,
-  ProvenanceTheme,
-} from '@/lib/supabase/types'
+import type { LayerProvenance, ProvenanceTerm } from '@/lib/supabase/types'
+import {
+  type ProvenanceVocabularies,
+  VOCABULARIES,
+  type VocabularyKind,
+} from '@/lib/vocabularies'
 
-export const PROVENANCE_SOURCES: { id: ProvenanceSource; label: string }[] = [
-  { id: 'osm', label: 'OpenStreetMap' },
-  { id: 'kobo', label: 'KoboToolbox' },
-  { id: 'workshop', label: 'Oficina comunitária' },
-  { id: 'qgis', label: 'QGIS' },
-  { id: 'other', label: 'Outro' },
-]
+/**
+ * Provenance fields store term slugs. `producers` became a list of slugs, but a
+ * layer saved before the vocabulary tables may still carry a single string.
+ */
+export function toTermSlugs(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return [
+      ...new Set(
+        value.filter(
+          (item): item is string => typeof item === 'string' && item.length > 0
+        )
+      ),
+    ]
+  }
+  if (typeof value === 'string' && value.length > 0) {
+    return [
+      ...new Set(
+        value
+          .split(',')
+          .map(item => item.trim())
+          .filter(item => item.length > 0)
+      ),
+    ]
+  }
+  return []
+}
 
-export const PROVENANCE_THEMES: { id: ProvenanceTheme; label: string }[] = [
-  { id: 'physical_vulnerability', label: 'Vulnerabilidade física' },
-  { id: 'risk_perception', label: 'Percepção de risco' },
-  { id: 'infrastructure', label: 'Infraestrutura' },
-  { id: 'overlay', label: 'Cruzamento / sobreposição' },
-  { id: 'other', label: 'Outro' },
-]
-
-export const PROVENANCE_HAZARDS: { id: ProvenanceHazard; label: string }[] = [
-  { id: 'landslide', label: 'Deslizamento de terra' },
-  { id: 'rockfall', label: 'Deslizamento de rocha' },
-  { id: 'hydrological', label: 'Eventos hídricos' },
-  { id: 'none', label: 'Não se aplica' },
-]
-
-export const PARTICIPATION_LEVELS: {
-  id: ParticipationLevel
-  label: string
-}[] = [
-  { id: 'low', label: 'Baixo' },
-  { id: 'medium', label: 'Médio' },
-  { id: 'high', label: 'Alto' },
-]
-
+/** Falls back to the raw slug so a deleted term never renders as blank. */
 export function provenanceLabel(
-  options: { id: string; label: string }[],
-  id: string | undefined
+  terms: ProvenanceTerm[] | undefined,
+  slug: string | undefined
 ) {
-  return options.find(option => option.id === id)?.label
+  if (!slug) return undefined
+  return terms?.find(term => term.slug === slug)?.label ?? slug
+}
+
+export function provenanceLabels(
+  terms: ProvenanceTerm[] | undefined,
+  value: unknown
+) {
+  return toTermSlugs(value)
+    .map(slug => provenanceLabel(terms, slug))
+    .filter((label): label is string => Boolean(label))
+}
+
+/**
+ * Drops slugs that no longer exist in the vocabularies and forces `producers`
+ * into an array, so a stale form payload cannot write dangling references.
+ */
+export function normalizeProvenance(
+  provenance: LayerProvenance,
+  vocabularies: ProvenanceVocabularies
+): LayerProvenance {
+  const known = (kind: VocabularyKind, slug: string) =>
+    vocabularies[kind].some(term => term.slug === slug)
+
+  const single = (kind: VocabularyKind, value: unknown) =>
+    typeof value === 'string' && known(kind, value) ? value : undefined
+
+  const text = (value: unknown) =>
+    typeof value === 'string' && value.length > 0 ? value : undefined
+
+  const producers = toTermSlugs(provenance.producers).filter(slug =>
+    known('responsaveis', slug)
+  )
+
+  const normalized: LayerProvenance = {
+    source: single('fontes', provenance.source),
+    sourceDetail: text(provenance.sourceDetail),
+    period: text(provenance.period),
+    producers: producers.length > 0 ? producers : undefined,
+    theme: single('temas', provenance.theme),
+    hazard: single('perigos', provenance.hazard),
+    participationLevel: single('participacao', provenance.participationLevel),
+    license: single('licencas', provenance.license),
+    usageRestriction: text(provenance.usageRestriction),
+  }
+
+  return Object.fromEntries(
+    Object.entries(normalized).filter(([, value]) => value !== undefined)
+  ) as LayerProvenance
 }
 
 export function hasPublicProvenance(provenance: LayerProvenance | undefined) {
@@ -51,11 +94,19 @@ export function hasPublicProvenance(provenance: LayerProvenance | undefined) {
     provenance.source ||
       provenance.sourceDetail ||
       provenance.period ||
-      provenance.producers ||
+      toTermSlugs(provenance.producers).length > 0 ||
       provenance.theme ||
       provenance.hazard ||
       provenance.participationLevel ||
       provenance.license ||
       provenance.usageRestriction
   )
+}
+
+/** Slugs a layer references for a given vocabulary. */
+export function provenanceSlugsFor(
+  provenance: LayerProvenance | undefined,
+  kind: VocabularyKind
+) {
+  return toTermSlugs(provenance?.[VOCABULARIES[kind].field])
 }

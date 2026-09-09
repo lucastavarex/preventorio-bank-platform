@@ -10,10 +10,7 @@ export function invalidateGroups(queryClient: QueryClient) {
   ])
 }
 
-export function invalidateLayers(
-  queryClient: QueryClient,
-  layerId?: string
-) {
+export function invalidateLayers(queryClient: QueryClient, layerId?: string) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.layers.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.geoportal.all }),
@@ -22,6 +19,16 @@ export function invalidateLayers(
           queryKey: queryKeys.geojson.byLayer(layerId),
         })
       : Promise.resolve(),
+  ])
+}
+
+export function invalidateVocabularies(queryClient: QueryClient) {
+  // Layer lists and the geoportal render provenance labels, so they go stale
+  // whenever a term changes.
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.vocabularies.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.layers.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.geoportal.all }),
   ])
 }
 

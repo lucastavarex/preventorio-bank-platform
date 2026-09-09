@@ -1,69 +1,78 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+import { useProvenanceVocabularies } from '@/hooks/use-vocabularies'
 import {
   hasPublicProvenance,
-  PARTICIPATION_LEVELS,
-  PROVENANCE_HAZARDS,
-  PROVENANCE_SOURCES,
-  PROVENANCE_THEMES,
   provenanceLabel,
+  provenanceLabels,
 } from '@/lib/provenance'
 import type { Layer } from '@/lib/supabase/types'
 
 export function LayerFactSheet({ layer }: { layer: Layer }) {
+  const vocabulariesQuery = useProvenanceVocabularies()
+
+  if (vocabulariesQuery.isPending) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    )
+  }
+
+  const vocabularies = vocabulariesQuery.data
+  const provenance = layer.provenance
+  const sourceLabel = provenanceLabel(vocabularies?.fontes, provenance?.source)
+  const producers = provenanceLabels(
+    vocabularies?.responsaveis,
+    provenance?.producers
+  )
+
   const rows = [
     layer.description ? { label: 'Descrição', value: layer.description } : null,
-    provenanceLabel(PROVENANCE_SOURCES, layer.provenance?.source)
+    sourceLabel
       ? {
           label: 'Fonte',
-          value: [
-            provenanceLabel(PROVENANCE_SOURCES, layer.provenance.source),
-            layer.provenance.sourceDetail,
-          ]
+          value: [sourceLabel, provenance.sourceDetail]
             .filter(Boolean)
             .join(' — '),
         }
-      : layer.provenance?.sourceDetail
-        ? { label: 'Fonte', value: layer.provenance.sourceDetail }
+      : provenance?.sourceDetail
+        ? { label: 'Fonte', value: provenance.sourceDetail }
         : null,
-    layer.provenance?.period
-      ? { label: 'Período', value: layer.provenance.period }
+    provenance?.period ? { label: 'Período', value: provenance.period } : null,
+    producers.length > 0
+      ? { label: 'Responsáveis', value: producers.join(', ') }
       : null,
-    layer.provenance?.producers
-      ? { label: 'Responsáveis', value: layer.provenance.producers }
-      : null,
-    provenanceLabel(PROVENANCE_THEMES, layer.provenance?.theme)
-      ? {
-          label: 'Tema',
-          value: provenanceLabel(PROVENANCE_THEMES, layer.provenance.theme),
-        }
-      : null,
-    provenanceLabel(PROVENANCE_HAZARDS, layer.provenance?.hazard)
-      ? {
-          label: 'Perigo',
-          value: provenanceLabel(PROVENANCE_HAZARDS, layer.provenance.hazard),
-        }
-      : null,
-    provenanceLabel(PARTICIPATION_LEVELS, layer.provenance?.participationLevel)
-      ? {
-          label: 'Participação',
-          value: provenanceLabel(
-            PARTICIPATION_LEVELS,
-            layer.provenance.participationLevel
-          ),
-        }
-      : null,
-    layer.provenance?.license
-      ? { label: 'Licença', value: layer.provenance.license }
-      : null,
-    layer.provenance?.usageRestriction
-      ? { label: 'Restrição de uso', value: layer.provenance.usageRestriction }
+    {
+      label: 'Tema',
+      value: provenanceLabel(vocabularies?.temas, provenance?.theme),
+    },
+    {
+      label: 'Perigo',
+      value: provenanceLabel(vocabularies?.perigos, provenance?.hazard),
+    },
+    {
+      label: 'Participação',
+      value: provenanceLabel(
+        vocabularies?.participacao,
+        provenance?.participationLevel
+      ),
+    },
+    {
+      label: 'Licença',
+      value: provenanceLabel(vocabularies?.licencas, provenance?.license),
+    },
+    provenance?.usageRestriction
+      ? { label: 'Restrição de uso', value: provenance.usageRestriction }
       : null,
   ].filter((row): row is { label: string; value: string } =>
     Boolean(row?.value)
   )
 
-  if (rows.length === 0 && !hasPublicProvenance(layer.provenance)) {
+  if (rows.length === 0 && !hasPublicProvenance(provenance)) {
     return (
       <p className="text-muted-foreground text-sm">
         Esta camada ainda não tem ficha de proveniência.
