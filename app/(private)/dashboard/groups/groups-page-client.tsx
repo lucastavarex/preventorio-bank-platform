@@ -96,7 +96,7 @@ export function GroupsPageClient() {
                 </Button>
                 <ConfirmDeleteButton
                   action={() => deleteGroup.mutateAsync(group.id)}
-                  message={`Excluir o grupo "${group.title}" e todos os layers associados?`}
+                  message={`Excluir o grupo "${group.title}"? Os layers continuam cadastrados, apenas deixam de pertencer a ele.`}
                 />
               </CardFooter>
             </Card>

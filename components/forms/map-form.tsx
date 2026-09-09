@@ -26,7 +26,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useCreateMap, useUpdateMap } from '@/hooks/use-maps'
 import { isNextRedirect } from '@/lib/next-redirect'
 import type {
-  LayerWithGroup,
+  LayerWithGroups,
   SavedMap,
   SavedMapCamera,
   SavedMapLayer,
@@ -40,7 +40,7 @@ type MapDraft = {
 }
 
 type MapFormProps = {
-  layers: LayerWithGroup[]
+  layers: LayerWithGroups[]
   defaultValues?: Partial<SavedMap>
   draft?: MapDraft
 }
@@ -214,10 +214,10 @@ export function MapForm({ layers, defaultValues, draft }: MapFormProps) {
                 />
                 <FieldLabel htmlFor={inputId} className="min-w-0 w-auto flex-1">
                   <span className="truncate">{layer.title}</span>
-                  {layer.groups?.title ? (
+                  {layer.groups.length > 0 ? (
                     <span className="text-muted-foreground">
                       {' '}
-                      · {layer.groups.title}
+                      · {layer.groups.map(group => group.title).join(' · ')}
                     </span>
                   ) : null}
                 </FieldLabel>

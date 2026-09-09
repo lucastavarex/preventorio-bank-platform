@@ -10,15 +10,21 @@ import {
   createServiceClient,
 } from '@/lib/supabase/server'
 import type {
+  Group,
   Layer,
+  LayerGroupInsert,
   LayerInsert,
   LayerPopupConfig,
   LayerProvenance,
   LayerStyle,
   LayerUpdate,
-  LayerWithGroup,
+  LayerWithGroups,
   LegendConfig,
 } from '@/lib/supabase/types'
+
+const LAYER_WITH_GROUPS_SELECT = '*, groups(id, title)'
+
+type GroupWithLayersRow = Group & { layers: Layer[] | null }
 
 function revalidateLayerPages() {
   revalidatePath('/dashboard')
@@ -27,46 +33,46 @@ function revalidateLayerPages() {
   revalidatePath('/geoportal')
 }
 
-export async function getLayers(groupId?: string): Promise<LayerWithGroup[]> {
+export async function getLayers(groupId?: string): Promise<LayerWithGroups[]> {
   await requireAdmin()
   const supabase = createServiceClient()
+
+  // Filtering happens on the join table instead of an inner join on `groups`,
+  // so each layer still carries every group it belongs to.
+  let layerIds: string[] | undefined
+  if (groupId) {
+    const { data, error } = await supabase
+      .from('layer_groups')
+      .select('layer_id')
+      .eq('group_id', groupId)
+
+    if (error) throw new Error(error.message)
+    layerIds = (data ?? []).map(row => row.layer_id)
+    if (layerIds.length === 0) return []
+  }
+
   const query = supabase
     .from('layers')
-    .select('*, groups(title)')
+    .select(LAYER_WITH_GROUPS_SELECT)
     .order('sort_order', { ascending: true })
 
-  const { data, error } = await (groupId
-    ? query.eq('group_id', groupId)
-    : query)
+  const { data, error } = await (layerIds ? query.in('id', layerIds) : query)
 
   if (error) throw new Error(error.message)
-  return data as LayerWithGroup[]
+  return data as LayerWithGroups[]
 }
 
-export async function getLayersByGroup(groupId: string) {
+export async function getLayer(id: string): Promise<LayerWithGroups> {
   await requireAdmin()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('layers')
-    .select('*')
-    .eq('group_id', groupId)
-    .order('sort_order', { ascending: true })
-
-  if (error) throw new Error(error.message)
-  return data
-}
-
-export async function getLayer(id: string): Promise<LayerWithGroup> {
-  await requireAdmin()
-  const supabase = createServiceClient()
-  const { data, error } = await supabase
-    .from('layers')
-    .select('*, groups(title)')
+    .select(LAYER_WITH_GROUPS_SELECT)
     .eq('id', id)
     .single()
 
   if (error) throw new Error(error.message)
-  return data as LayerWithGroup
+  return data as LayerWithGroups
 }
 
 export async function getGroupsWithLayers() {
@@ -98,18 +104,19 @@ export async function getGroupsWithLayers() {
 
   if (result.error) throw new Error(result.error.message)
 
-  return result.data.map(g => ({
+  // supabase-js cannot infer the many-to-many embed through layer_groups, so
+  // the shape PostgREST returns is declared here.
+  const rows = (result.data ?? []) as unknown as GroupWithLayersRow[]
+
+  return rows.map(g => ({
     ...g,
     layers: (g.layers ?? [])
-      .map((layer: Layer) => ({
+      .map(layer => ({
         ...layer,
         provenance: layer.provenance ?? {},
         popup: layer.popup ?? {},
       }))
-      .sort(
-        (a: { sort_order: number }, b: { sort_order: number }) =>
-          a.sort_order - b.sort_order
-      ),
+      .sort((a, b) => a.sort_order - b.sort_order),
   }))
 }
 
@@ -132,6 +139,44 @@ async function parseUploadedGeojson(file: File) {
   return { text, geojson, bbox: computeBBox(geojson) }
 }
 
+function parseGroupIds(formData: FormData) {
+  const groupIds = [
+    ...new Set(
+      formData
+        .getAll('group_ids')
+        .filter((value): value is string => typeof value === 'string')
+        .filter(value => value.length > 0)
+    ),
+  ]
+
+  if (groupIds.length === 0) {
+    throw new Error('Selecione ao menos um grupo.')
+  }
+
+  return groupIds
+}
+
+async function setLayerGroups(
+  supabase: ReturnType<typeof createServiceClient>,
+  layerId: string,
+  groupIds: string[]
+) {
+  const { error: deleteError } = await supabase
+    .from('layer_groups')
+    .delete()
+    .eq('layer_id', layerId)
+
+  if (deleteError) throw new Error(deleteError.message)
+
+  const rows: LayerGroupInsert[] = groupIds.map(groupId => ({
+    layer_id: layerId,
+    group_id: groupId,
+  }))
+
+  const { error } = await supabase.from('layer_groups').insert(rows)
+  if (error) throw new Error(error.message)
+}
+
 export async function createLayer(formData: FormData) {
   await requireAdmin()
   const supabase = createServiceClient()
@@ -141,6 +186,7 @@ export async function createLayer(formData: FormData) {
     throw new Error('Envie um arquivo GeoJSON.')
   }
 
+  const groupIds = parseGroupIds(formData)
   const layerId = crypto.randomUUID()
   const { text, bbox } = await parseUploadedGeojson(file)
 
@@ -156,7 +202,6 @@ export async function createLayer(formData: FormData) {
 
   const payload: LayerInsert = {
     id: layerId,
-    group_id: formData.get('group_id') as string,
     title: formData.get('title') as string,
     description: (formData.get('description') as string) || null,
     notes: (formData.get('notes') as string) || null,
@@ -172,6 +217,8 @@ export async function createLayer(formData: FormData) {
   const { error } = await supabase.from('layers').insert(payload)
   if (error) throw new Error(error.message)
 
+  await setLayerGroups(supabase, layerId, groupIds)
+
   revalidateLayerPages()
   redirect('/dashboard/layers')
 }
@@ -180,6 +227,7 @@ export async function updateLayer(id: string, formData: FormData) {
   await requireAdmin()
   const supabase = createServiceClient()
 
+  const groupIds = parseGroupIds(formData)
   const file = formData.get('geojson') as File | null
   let storagePath: string | undefined
   let bbox: number[] | null | undefined
@@ -200,7 +248,6 @@ export async function updateLayer(id: string, formData: FormData) {
   const legendRaw = formData.get('legend') as string | null
 
   const payload: LayerUpdate = {
-    group_id: formData.get('group_id') as string,
     title: formData.get('title') as string,
     description: (formData.get('description') as string) || null,
     notes: (formData.get('notes') as string) || null,
@@ -216,6 +263,8 @@ export async function updateLayer(id: string, formData: FormData) {
 
   const { error } = await supabase.from('layers').update(payload).eq('id', id)
   if (error) throw new Error(error.message)
+
+  await setLayerGroups(supabase, id, groupIds)
 
   revalidateLayerPages()
   redirect('/dashboard/layers')

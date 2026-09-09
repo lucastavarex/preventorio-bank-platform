@@ -11,10 +11,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { useDeleteLayer } from '@/hooks/use-layers'
-import type { LayerWithGroup } from '@/lib/supabase/types'
+import type { LayerWithGroups } from '@/lib/supabase/types'
 
 type LayerCardsProps = {
-  layers: LayerWithGroup[]
+  layers: LayerWithGroups[]
   showGroup?: boolean
   emptyTitle?: string
   emptyDescription?: string
@@ -61,7 +61,10 @@ export function LayerCards({
             </CardDescription>
             {showGroup && (
               <p className="text-muted-foreground text-xs">
-                Grupo: {layer.groups?.title ?? '—'}
+                {layer.groups.length === 1 ? 'Grupo: ' : 'Grupos: '}
+                {layer.groups.length > 0
+                  ? layer.groups.map(group => group.title).join(', ')
+                  : '—'}
               </p>
             )}
           </CardHeader>

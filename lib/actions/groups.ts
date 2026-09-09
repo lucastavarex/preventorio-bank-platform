@@ -79,21 +79,7 @@ export async function deleteGroup(id: string) {
   await requireAdmin()
   const supabase = createServiceClient()
 
-  const { data: layers, error: layersError } = await supabase
-    .from('layers')
-    .select('geojson_storage_path')
-    .eq('group_id', id)
-
-  if (layersError) throw new Error(layersError.message)
-
-  const storagePaths = (layers ?? [])
-    .map(layer => layer.geojson_storage_path)
-    .filter((path): path is string => Boolean(path))
-
-  if (storagePaths.length > 0) {
-    await supabase.storage.from('geojson').remove(storagePaths)
-  }
-
+  // Layers survive: the cascade on layer_groups only drops the memberships.
   const { error } = await supabase.from('groups').delete().eq('id', id)
   if (error) throw new Error(error.message)
 

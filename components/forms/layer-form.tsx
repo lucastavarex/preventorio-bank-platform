@@ -23,19 +23,12 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { useGeojson } from '@/hooks/use-geojson'
@@ -55,12 +48,14 @@ import type {
 type LayerFormProps = {
   groups: Group[]
   defaultValues?: Partial<Layer>
+  defaultGroupIds?: string[]
   geojsonRequired?: boolean
 }
 
 export function LayerForm({
   groups,
   defaultValues,
+  defaultGroupIds,
   geojsonRequired = false,
 }: LayerFormProps) {
   const [preview, setPreview] = useState<GeoJSON.FeatureCollection | null>(null)
@@ -77,7 +72,7 @@ export function LayerForm({
   const [popup, setPopup] = useState<LayerPopupConfig>(
     defaultValues?.popup ?? {}
   )
-  const [groupId, setGroupId] = useState(defaultValues?.group_id ?? '')
+  const [groupIds, setGroupIds] = useState<string[]>(defaultGroupIds ?? [])
   const [isPrivate, setIsPrivate] = useState(defaultValues?.is_private ?? false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [confirmPublicOpen, setConfirmPublicOpen] = useState(false)
@@ -134,6 +129,16 @@ export function LayerForm({
     setPreview(savedPreview)
   }, [savedPreview])
 
+  const toggleGroup = useCallback((groupId: string, checked: boolean) => {
+    setGroupIds(prev =>
+      checked
+        ? prev.includes(groupId)
+          ? prev
+          : [...prev, groupId]
+        : prev.filter(id => id !== groupId)
+    )
+  }, [])
+
   const handleStyleChange = useCallback((next: LayerStyle) => {
     setStyle(next)
     if (hasClassify(next)) {
@@ -151,14 +156,17 @@ export function LayerForm({
       formData.set('legend', JSON.stringify(legendToSave))
       formData.set('provenance', JSON.stringify(provenance))
       formData.set('popup', JSON.stringify(popup))
-      formData.set('group_id', groupId)
       formData.set('is_private', isPrivate ? 'on' : '')
+      formData.delete('group_ids')
+      for (const id of groupIds) {
+        formData.append('group_ids', id)
+      }
       if (selectedFile) {
         formData.set('geojson', selectedFile)
       }
       return formData
     },
-    [selectedFile, style, legend, provenance, popup, groupId, isPrivate]
+    [selectedFile, style, legend, provenance, popup, groupIds, isPrivate]
   )
 
   const save = useCallback(
@@ -225,29 +233,42 @@ export function LayerForm({
             </Field>
 
             <Field data-disabled={groups.length === 0 || undefined}>
-              <FieldLabel htmlFor="group_id">Grupo</FieldLabel>
-              <Select
-                value={groupId}
-                onValueChange={setGroupId}
-                disabled={groups.length === 0}
-              >
-                <SelectTrigger id="group_id" className="w-full">
-                  <SelectValue placeholder="Selecione um grupo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {groups.map(group => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.title}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              {groups.length === 0 && (
+              <FieldLabel>Grupos</FieldLabel>
+              <FieldDescription>
+                O layer aparece no catálogo de todos os grupos marcados.
+              </FieldDescription>
+              {groups.length > 0 && (
+                <div className="flex flex-col gap-2 rounded-lg border p-3">
+                  {groups.map(group => {
+                    const inputId = `layer-group-${group.id}`
+                    return (
+                      <Field key={group.id} orientation="horizontal">
+                        <Checkbox
+                          id={inputId}
+                          checked={groupIds.includes(group.id)}
+                          onCheckedChange={checked =>
+                            toggleGroup(group.id, checked === true)
+                          }
+                        />
+                        <FieldLabel
+                          htmlFor={inputId}
+                          className="min-w-0 w-auto flex-1"
+                        >
+                          <span className="truncate">{group.title}</span>
+                        </FieldLabel>
+                      </Field>
+                    )
+                  })}
+                </div>
+              )}
+              {groups.length === 0 ? (
                 <FieldError>
                   Crie um grupo antes de cadastrar um layer.
                 </FieldError>
+              ) : (
+                groupIds.length === 0 && (
+                  <FieldError>Selecione ao menos um grupo.</FieldError>
+                )
               )}
             </Field>
 
@@ -319,7 +340,7 @@ export function LayerForm({
             disabled={
               mutation.isPending ||
               groups.length === 0 ||
-              !groupId ||
+              groupIds.length === 0 ||
               (geojsonRequired && !hasExistingFile && !selectedFile)
             }
           >

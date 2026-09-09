@@ -44,7 +44,6 @@ export interface Database {
       layers: {
         Row: {
           id: string
-          group_id: string
           title: string
           description: string | null
           notes: string | null
@@ -61,7 +60,6 @@ export interface Database {
         }
         Insert: {
           id?: string
-          group_id: string
           title: string
           description?: string | null
           notes?: string | null
@@ -78,7 +76,6 @@ export interface Database {
         }
         Update: {
           id?: string
-          group_id?: string
           title?: string
           description?: string | null
           notes?: string | null
@@ -92,9 +89,30 @@ export interface Database {
           sort_order?: number
           updated_at?: string
         }
+        Relationships: []
+      }
+      layer_groups: {
+        Row: {
+          layer_id: string
+          group_id: string
+        }
+        Insert: {
+          layer_id: string
+          group_id: string
+        }
+        Update: {
+          layer_id?: string
+          group_id?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 'layers_group_id_fkey'
+            foreignKeyName: 'layer_groups_layer_id_fkey'
+            columns: ['layer_id']
+            referencedRelation: 'layers'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'layer_groups_group_id_fkey'
             columns: ['group_id']
             referencedRelation: 'groups'
             referencedColumns: ['id']
@@ -252,11 +270,14 @@ export type SavedMapCamera = {
 export type Group = Database['public']['Tables']['groups']['Row']
 export type Layer = Database['public']['Tables']['layers']['Row']
 export type SavedMap = Database['public']['Tables']['maps']['Row']
-export type LayerWithGroup = Layer & {
-  groups: Pick<Group, 'title'> | null
+export type LayerGroupRef = Pick<Group, 'id' | 'title'>
+export type LayerWithGroups = Layer & {
+  groups: LayerGroupRef[]
 }
 export type GroupInsert = Database['public']['Tables']['groups']['Insert']
 export type LayerInsert = Database['public']['Tables']['layers']['Insert']
+export type LayerGroupInsert =
+  Database['public']['Tables']['layer_groups']['Insert']
 export type MapInsert = Database['public']['Tables']['maps']['Insert']
 export type GroupUpdate = Database['public']['Tables']['groups']['Update']
 export type LayerUpdate = Database['public']['Tables']['layers']['Update']

@@ -316,7 +316,10 @@ function RecentLayerRow({
   layer: DashboardRecentLayer
   isAdmin: boolean
 }) {
-  const groupTitle = layer.groupTitle ?? 'Sem grupo'
+  const groupTitle =
+    layer.groups.length > 0
+      ? layer.groups.map(group => group.title).join(', ')
+      : 'Sem grupo'
   const updatedLabel = formatUpdatedAt(layer.updatedAt)
 
   return (

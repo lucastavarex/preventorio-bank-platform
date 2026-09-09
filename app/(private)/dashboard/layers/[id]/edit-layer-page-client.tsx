@@ -34,7 +34,11 @@ export function EditLayerPageClient({ id }: { id: string }) {
         <h1 className="font-bold text-2xl">Editar layer</h1>
         <p className="text-muted-foreground text-sm">{layerQuery.data.title}</p>
       </div>
-      <LayerForm groups={groupsQuery.data} defaultValues={layerQuery.data} />
+      <LayerForm
+        groups={groupsQuery.data}
+        defaultValues={layerQuery.data}
+        defaultGroupIds={layerQuery.data.groups.map(group => group.id)}
+      />
     </div>
   )
 }

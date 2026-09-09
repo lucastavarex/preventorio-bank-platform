@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS public.groups (
 -- 3. Layers table
 CREATE TABLE IF NOT EXISTS public.layers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  group_id UUID NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   notes TEXT,
@@ -34,13 +33,24 @@ CREATE TABLE IF NOT EXISTS public.layers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS layers_group_id_idx ON public.layers(group_id);
+-- 4. Layer/group membership (many-to-many).
+-- The composite primary key is what lets PostgREST detect the N:N
+-- relationship and keep `groups(*, layers(*))` embedding working.
+CREATE TABLE IF NOT EXISTS public.layer_groups (
+  layer_id UUID NOT NULL REFERENCES public.layers(id) ON DELETE CASCADE,
+  group_id UUID NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
+  PRIMARY KEY (layer_id, group_id)
+);
 
--- 4. Enable RLS
+CREATE INDEX IF NOT EXISTS layer_groups_group_id_idx
+  ON public.layer_groups(group_id);
+
+-- 5. Enable RLS
 ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.layers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.layer_groups ENABLE ROW LEVEL SECURITY;
 
--- 5. Helper: extract org role from Clerk session token.
+-- 6. Helper: extract org role from Clerk session token.
 -- The JWT `role` claim must stay `authenticated` for Supabase.
 -- App roles live in `user_role` (`org:admin` / `org:member`).
 CREATE OR REPLACE FUNCTION public.requesting_role()
@@ -51,7 +61,7 @@ AS $$
   SELECT COALESCE(auth.jwt()->>'user_role', 'anon')
 $$;
 
--- 6. RLS Policies for groups
+-- 7. RLS Policies for groups
 
 -- Public read: anyone can see non-private groups
 CREATE POLICY "groups_public_read" ON public.groups
@@ -88,7 +98,7 @@ CREATE POLICY "groups_admin_delete" ON public.groups
   TO authenticated
   USING (public.requesting_role() IN ('org:admin', 'admin'));
 
--- 7. RLS Policies for layers
+-- 8. RLS Policies for layers
 
 CREATE POLICY "layers_public_read" ON public.layers
   FOR SELECT
@@ -122,7 +132,52 @@ CREATE POLICY "layers_admin_delete" ON public.layers
   TO authenticated
   USING (public.requesting_role() IN ('org:admin', 'admin'));
 
--- 8. Saved map compositions
+-- 9. RLS Policies for layer_groups
+
+-- Anonymous readers only see memberships where both sides are public, so a
+-- private layer id never leaks through the join table.
+CREATE POLICY "layer_groups_public_read" ON public.layer_groups
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.layers l
+      WHERE l.id = layer_id AND l.is_private = false
+    )
+    AND EXISTS (
+      SELECT 1 FROM public.groups g
+      WHERE g.id = group_id AND g.is_private = false
+    )
+  );
+
+CREATE POLICY "layer_groups_auth_read" ON public.layer_groups
+  FOR SELECT
+  TO authenticated
+  USING (
+    public.requesting_role() IN (
+      'org:admin',
+      'org:member',
+      'admin',
+      'reader'
+    )
+  );
+
+CREATE POLICY "layer_groups_admin_insert" ON public.layer_groups
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.requesting_role() IN ('org:admin', 'admin'));
+
+CREATE POLICY "layer_groups_admin_update" ON public.layer_groups
+  FOR UPDATE
+  TO authenticated
+  USING (public.requesting_role() IN ('org:admin', 'admin'))
+  WITH CHECK (public.requesting_role() IN ('org:admin', 'admin'));
+
+CREATE POLICY "layer_groups_admin_delete" ON public.layer_groups
+  FOR DELETE
+  TO authenticated
+  USING (public.requesting_role() IN ('org:admin', 'admin'));
+
+-- 10. Saved map compositions
 CREATE TABLE IF NOT EXISTS public.maps (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
@@ -170,7 +225,7 @@ CREATE POLICY "maps_admin_delete" ON public.maps
   TO authenticated
   USING (public.requesting_role() IN ('org:admin', 'admin'));
 
--- 9. Storage bucket for GeoJSON files (private; read via signed URLs)
+-- 11. Storage bucket for GeoJSON files (private; read via signed URLs)
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('geojson', 'geojson', false)
 ON CONFLICT (id) DO UPDATE SET public = false;

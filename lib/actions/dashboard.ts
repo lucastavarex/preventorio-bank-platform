@@ -9,7 +9,13 @@ import {
   createServerClient,
   createServiceClient,
 } from '@/lib/supabase/server'
-import type { Group, Layer, SavedMap } from '@/lib/supabase/types'
+import type {
+  Group,
+  Layer,
+  LayerGroupRef,
+  LayerWithGroups,
+  SavedMap,
+} from '@/lib/supabase/types'
 
 const RECENT_LIMIT = 5
 
@@ -23,8 +29,7 @@ export type DashboardGroupSummary = {
 export type DashboardRecentLayer = {
   id: string
   title: string
-  groupId: string
-  groupTitle: string | null
+  groups: LayerGroupRef[]
   isPrivate: boolean
   updatedAt: string
 }
@@ -79,20 +84,17 @@ function toRecentMaps(maps: SavedMap[]): DashboardRecentMap[] {
 
 function buildOverview(
   groups: Group[],
-  layers: Layer[],
+  layers: LayerWithGroups[],
   maps: SavedMap[],
   isAdmin: boolean
 ): DashboardOverview {
-  const groupTitleById = new Map(groups.map(group => [group.id, group.title]))
-
   const recentLayers = [...layers]
     .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
     .slice(0, RECENT_LIMIT)
     .map(layer => ({
       id: layer.id,
       title: layer.title,
-      groupId: layer.group_id,
-      groupTitle: groupTitleById.get(layer.group_id) ?? null,
+      groups: layer.groups,
       isPrivate: layer.is_private,
       updatedAt: layer.updated_at,
     }))
@@ -108,7 +110,9 @@ function buildOverview(
       id: group.id,
       title: group.title,
       isPrivate: group.is_private,
-      layerCount: layers.filter(layer => layer.group_id === group.id).length,
+      layerCount: layers.filter(layer =>
+        layer.groups.some(layerGroup => layerGroup.id === group.id)
+      ).length,
     })),
     recentLayers,
     recentMaps: toRecentMaps(maps),
@@ -156,7 +160,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       supabase.from('groups').select('*').order('sort_order', {
         ascending: true,
       }),
-      supabase.from('layers').select('*'),
+      supabase.from('layers').select('*, groups(id, title)'),
       supabase.from('maps').select('*').order('updated_at', {
         ascending: false,
       }),
@@ -168,7 +172,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
 
     return buildOverview(
       groupsResult.data,
-      layersResult.data,
+      layersResult.data as LayerWithGroups[],
       mapsResult.data as SavedMap[],
       true
     )
@@ -179,7 +183,21 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     getPublicMaps(),
   ])
   const groups = nested.map(({ layers: _layers, ...group }) => group)
-  const layers = nested.flatMap(group => group.layers)
 
-  return buildOverview(groups, layers, maps, false)
+  // A layer shows up once per group it belongs to, so rebuild its group list
+  // while collapsing the duplicates.
+  const layersById = new Map<string, LayerWithGroups>()
+  for (const group of nested) {
+    for (const layer of group.layers as Layer[]) {
+      const existing = layersById.get(layer.id)
+      const groupRef = { id: group.id, title: group.title }
+      if (existing) {
+        existing.groups.push(groupRef)
+      } else {
+        layersById.set(layer.id, { ...layer, groups: [groupRef] })
+      }
+    }
+  }
+
+  return buildOverview(groups, [...layersById.values()], maps, false)
 }

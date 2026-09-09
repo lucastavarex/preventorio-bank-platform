@@ -44,11 +44,13 @@ Firebase e Deck.GL **não** são usados. A proposta original citava esses itens;
 
 ## 3. Modelo de dados
 
-Schema em `supabase/migration.sql`. Bancos que já existiam antes das features de TCC precisam do patch `supabase/patch-tcc-features.sql`.
+Schema em `supabase/migration.sql`. Bancos que já existiam antes das features de TCC precisam do patch `supabase/patch-tcc-features.sql`; bancos anteriores ao N:N camada↔grupo precisam de `supabase/patch-layer-groups.sql`.
 
 ### 3.1 Grupos (`groups`)
 
 Pastas temáticas (ex.: vulnerabilidade, infraestrutura). Campos: título, descrição, anotações internas (`notes`), `is_private`, ordem.
+
+Apagar um grupo **não** apaga suas camadas: só remove os vínculos (ver §3.3).
 
 ### 3.2 Camadas (`layers`)
 
@@ -64,11 +66,20 @@ Campos principais:
 - `popup` (JSON): quais atributos aparecem no clique (ver §9)
 - `geojson_storage_path`, `bbox`
 
-### 3.3 Mapas salvos (`maps`)
+### 3.3 Camada em vários grupos (`layer_groups`)
+
+O vínculo camada↔grupo é N:N: uma camada pode aparecer no catálogo de vários grupos ao mesmo tempo (ex.: um cruzamento que serve tanto a “infraestrutura” quanto a “percepção de risco”).
+
+- Tabela de junção `layer_groups(layer_id, group_id)`, com PK composta e `ON DELETE CASCADE` nos dois lados
+- A PK composta é o que faz o PostgREST reconhecer o N:N e manter o embedding `groups(*, layers(*))` do geoportal
+- Toda camada precisa de **no mínimo um grupo**. Isso é garantido no formulário e nas actions `createLayer`/`updateLayer`, não por constraint do banco
+- No geoportal, a camada aparece em cada grupo marcado; no mapa continua sendo uma só (o viewer indexa por `id`)
+
+### 3.4 Mapas salvos (`maps`)
 
 Uma composição publicável: conjunto de camadas + ordem + opacidades + basemap + câmera opcional. Não é uma nova geometria; é um “mapa de leitura” no sentido do artigo (sobreposição de camadas).
 
-### 3.4 Privacidade
+### 3.5 Privacidade
 
 - Anônimo: só linhas com `is_private = false`
 - Membro ou admin autenticado: vê também o privado
@@ -228,6 +239,7 @@ lib/actions/maps.ts            CRUD mapas + leitura no viewer
 lib/actions/geojson.ts         URL assinada
 supabase/migration.sql         schema completo (banco novo)
 supabase/patch-tcc-features.sql  patch (banco que já existia)
+supabase/patch-layer-groups.sql  patch (camada em vários grupos)
 ```
 
 ---
@@ -236,9 +248,9 @@ supabase/patch-tcc-features.sql  patch (banco que já existia)
 
 **Banco novo:** rode `supabase/migration.sql` no SQL Editor.
 
-**Banco que já tinha grupos/camadas:** rode `supabase/patch-tcc-features.sql`. Sem isso, listar camadas ou salvar layer falha (faltam `provenance`, `popup` e a tabela `maps`), e o GeoJSON continua publicamente listável.
+**Banco que já tinha grupos/camadas:** rode `supabase/patch-tcc-features.sql` e depois `supabase/patch-layer-groups.sql`. Sem o primeiro, listar camadas ou salvar layer falha (faltam `provenance`, `popup` e a tabela `maps`), e o GeoJSON continua publicamente listável. Sem o segundo, o app quebra ao ler grupos de uma camada — o patch cria `layer_groups`, copia os vínculos de `layers.group_id` e só então derruba a coluna.
 
-Depois do patch, recarregue o app.
+Depois dos patches, recarregue o app.
 
 ---
 
