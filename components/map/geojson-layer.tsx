@@ -70,6 +70,9 @@ export function GeoJSONLayer({
             : fallback,
           'circle-radius': style.circleRadius ?? 6,
           'circle-opacity': opacity ?? style.circleOpacity ?? 1,
+          'circle-stroke-color': style.strokeColor ?? '#000000',
+          'circle-stroke-width': style.strokeWidth ?? 0,
+          'circle-stroke-opacity': opacity ?? style.strokeOpacity ?? 1,
         }
       }
       default:

@@ -50,6 +50,8 @@ export function GeoportalLegendBody({
                       <LegendSwatch
                         color={cls.color}
                         type={layer.style.type ?? 'fill'}
+                        strokeColor={layer.style.strokeColor}
+                        strokeWidth={layer.style.strokeWidth}
                       />
                       <span className={cn(hidden && 'line-through')}>
                         {cls.label}
@@ -84,15 +86,26 @@ function isClassHidden(
 function LegendSwatch({
   color,
   type,
+  strokeColor,
+  strokeWidth,
 }: {
   color: string
   type?: 'fill' | 'line' | 'circle'
+  strokeColor?: string
+  strokeWidth?: number
 }) {
   if (type === 'circle') {
+    const width = strokeWidth ?? 0
     return (
       <span
         className="inline-block size-3 rounded-full"
-        style={{ backgroundColor: color }}
+        style={{
+          backgroundColor: color,
+          boxShadow:
+            width > 0
+              ? `inset 0 0 0 ${Math.min(width, 2)}px ${strokeColor ?? '#000000'}`
+              : undefined,
+        }}
       />
     )
   }

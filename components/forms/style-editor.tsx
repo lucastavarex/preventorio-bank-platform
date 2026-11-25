@@ -133,35 +133,66 @@ export function StyleEditor({ value, onChange }: StyleEditorProps) {
         )}
 
         {layerType === 'circle' && (
-          <div className="grid grid-cols-3 gap-3">
-            {!classified && (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              {!classified && (
+                <ColorInput
+                  id="circle-color"
+                  label="Cor"
+                  value={value.circleColor ?? '#3b82f6'}
+                  onChange={circleColor => update({ circleColor })}
+                />
+              )}
+              <Field>
+                <FieldLabel htmlFor="circle-radius">Raio</FieldLabel>
+                <Input
+                  id="circle-radius"
+                  type="number"
+                  min="1"
+                  max="30"
+                  step="1"
+                  value={value.circleRadius ?? 6}
+                  onChange={event =>
+                    update({
+                      circleRadius: Number.parseFloat(event.target.value),
+                    })
+                  }
+                />
+              </Field>
+              <OpacitySlider
+                id="circle-opacity"
+                label="Opacidade"
+                value={value.circleOpacity ?? 1}
+                onChange={circleOpacity => update({ circleOpacity })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <ColorInput
-                label="Cor"
-                value={value.circleColor ?? '#3b82f6'}
-                onChange={circleColor => update({ circleColor })}
+                id="circle-stroke-color"
+                label="Cor da borda"
+                value={value.strokeColor ?? '#000000'}
+                onChange={strokeColor => update({ strokeColor })}
               />
-            )}
-            <Field>
-              <FieldLabel>Raio</FieldLabel>
-              <Input
-                type="number"
-                min="1"
-                max="30"
-                step="1"
-                value={value.circleRadius ?? 6}
-                onChange={event =>
-                  update({
-                    circleRadius: Number.parseFloat(event.target.value),
-                  })
-                }
-              />
-            </Field>
-            <OpacitySlider
-              label="Opacidade"
-              value={value.circleOpacity ?? 1}
-              onChange={circleOpacity => update({ circleOpacity })}
-            />
-          </div>
+              <Field>
+                <FieldLabel htmlFor="circle-stroke-width">
+                  Espessura da borda
+                </FieldLabel>
+                <Input
+                  id="circle-stroke-width"
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="0.5"
+                  value={value.strokeWidth ?? 0}
+                  onChange={event =>
+                    update({
+                      strokeWidth: Number.parseFloat(event.target.value),
+                    })
+                  }
+                />
+              </Field>
+            </div>
+          </>
         )}
       </FieldGroup>
     </FieldSet>
